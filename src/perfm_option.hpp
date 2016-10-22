@@ -75,6 +75,12 @@ public:
         return this->ev_groups;
     }
 
+public:
+    bool rdfmt_timeing = true; /* Always be true */
+    bool rdfmt_evgroup = true; /* Inherit does not work for some combinations of read_formats,
+                                * such as PERF_FORMAT_GROUP, see perf_event_open(2) for more detail.
+                                */
+
 private:
     std::vector<std::string> ev_groups; /* event group list 
                                          * - events separated by ',' within the same group

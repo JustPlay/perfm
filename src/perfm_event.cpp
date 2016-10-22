@@ -60,8 +60,8 @@ int event_t::ev_open(const std::string &evn, pid_t pid, int grp, int cpu, unsign
         return -1;
     }
 
-    this->pea.disabled    = -1 == this->grp ? 1 : 0;      /* disabled = 1 for group leader; disabled = 0 for group member */
-    this->pea.read_format = PERF_EVENT_READ_FORMAT_SCALE; /* include timing information for scaling */
+    this->pea.disabled    = -1 == this->grp ? 1 : 0;   /* disabled = 1 for group leader; disabled = 0 for group member */
+    this->pea.read_format = PEV_RDFMT_TIMEING;         /* include timing information for scaling */
 
     /* TODO */
 
@@ -89,9 +89,9 @@ bool event_t::ev_read()
 
     ssize_t ret = ::read(this->fd, this->pmu_val_curr, sizeof(this->pmu_val_curr)); 
     if (ret != sizeof(this->pmu_val_curr) && ret != sizeof(this->pmu_val_curr[0])) {
-        char err_buf[ERR_BUFSIZ] = { '\0' };
-        strerror_r(errno, err_buf, sizeof(err_buf));
-        perfm_warning("Read PMU counters failed, %s\n", err_buf);
+        char buferr[PERFM_BUFERR] = { '\0' };
+        strerror_r(errno, buferr, sizeof(buferr));
+        perfm_warning("Read PMU counters failed, %s\n", buferr);
 
         is_read_succ = false;
     }

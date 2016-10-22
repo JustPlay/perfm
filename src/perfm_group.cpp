@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <cstdint> /* uint64_t */
 #include <vector>
 #include <memory>
 
@@ -75,7 +76,7 @@ int group_t::gr_open(const std::vector<std::string> &ev_argv, pid_t pid, int cpu
     // Call perf_event_open() for each event in this group
     for (int i = 0; i < this->gr_size(); ++i) {
         ev_list[i]->pea.disabled    = i == this->grp ? 1 : 0; /* disabled = 1 for group leader; disabled = 0 for others */
-        ev_list[i]->pea.read_format = PERF_EVENT_READ_FORMAT_SCALE; /* include timing information for scaling */
+        ev_list[i]->pea.read_format = PEV_RDFMT_TIMEING;      /* include timing information for scaling */
 
         ev_list[i]->grp = i == this->grp ? -1 : gr_leader()->ev_fd();
 
@@ -89,15 +90,49 @@ int group_t::gr_open(const std::vector<std::string> &ev_argv, pid_t pid, int cpu
 
 size_t group_t::gr_read()
 {
-    size_t nr_event_read = 0; /* # of events in this group which has been read succesfully */
+    if (perfm_options.rdfmt_evgroup) {
+        size_t num_events = this->gr_size();
+        size_t siz_buffer = sizeof(uint64_t) * (3 + num_events);
 
-    for (auto iter = ev_list.begin(); iter != ev_list.end(); ++iter) {
-        if ((*iter)->ev_read()) {
-            ++nr_event_read;
+        uint64_t *val = new uint64_t[siz_buffer];
+        if (!val) {
+            perfm_error("Can't allocate memory: %" PRIu64 " bytes\n", siz_buffer);
         }
-    }
 
-    return nr_event_read;
+        ssize_t ret = ::read(this->gr_leader()->ev_fd(), val, siz_buffer);
+        if (ret == -1) {
+            perfm_error("%s\n", "Error occured when read events counters");
+        } 
+        if (ret < siz_buffer) {
+            perfm_warning("Read events counters, need read %zu bytes, actually read %zd bytes\n", siz_buffer, ret);
+        }
+
+        for (size_t i = 0; i < num_events; ++i) {
+            ev_list[i]->pmu_val_prev[0] = ev_list[i]->pmu_val_curr[0];
+            ev_list[i]->pmu_val_prev[1] = ev_list[i]->pmu_val_curr[1];
+            ev_list[i]->pmu_val_prev[2] = ev_list[i]->pmu_val_curr[2];
+
+            ev_list[i]->pmu_val_curr[0] = val[3 + i]; /* PMU vounter val */
+            ev_list[i]->pmu_val_curr[1] = val[1];     /* TIME_ENABLED */
+            ev_list[i]->pmu_val_curr[2] = val[2];     /* TIME_RUNNING */
+        }
+
+        if (val) {
+            delete[] val;
+        }
+
+        return num_events;
+
+    } else {
+        size_t num_events = 0; /* # of events which has been read succesfully */
+
+        for (auto iter = ev_list.begin(); iter != ev_list.end(); ++iter) {
+            if ((*iter)->ev_read()) {
+                ++num_events;
+            }
+        }
+        return num_events;
+    }
 }
 
 void group_t::gr_print() const

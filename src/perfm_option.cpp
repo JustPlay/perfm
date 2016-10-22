@@ -154,9 +154,9 @@ int options_t::parse_cmd_args(int argc, char **argv)
                 this->__in_file = std::move(std::string(optarg));
                 this->__in_fp   = ::fopen(optarg, "r");
                 if (!this->__in_fp) {
-                    char err_buf[ERR_BUFSIZ] = { '\0' };
-                    strerror_r(errno, err_buf, sizeof(err_buf));
-                    perfm_error("Error occured when opening the input file: %s, %s\n", optarg, err_buf);
+                    char buferr[PERFM_BUFERR] = { '\0' };
+                    strerror_r(errno, buferr, sizeof(buferr));
+                    perfm_error("Error occured when opening the input file: %s, %s\n", optarg, buferr);
                 }
                 break;
 
@@ -164,9 +164,9 @@ int options_t::parse_cmd_args(int argc, char **argv)
                 this->__out_file = std::move(std::string(optarg));
                 this->__out_fp   = ::fopen(optarg, "w");
                 if (!this->__out_fp) {
-                    char err_buf[ERR_BUFSIZ] = { '\0' };
-                    strerror_r(errno, err_buf, sizeof(err_buf));
-                    perfm_error("Error occured when opening the output file: %s, %s\n", optarg, err_buf);
+                    char buferr[PERFM_BUFERR] = { '\0' };
+                    strerror_r(errno, buferr, sizeof(buferr));
+                    perfm_error("Error occured when opening the output file: %s, %s\n", optarg, buferr);
                 }
                 break;
 

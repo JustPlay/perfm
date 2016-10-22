@@ -33,7 +33,7 @@
 } while (0)
 
 /*
- * Request timing information because event may be multiplexed
+ * Request timing information because event or/and PMU may be multiplexed
  * and thus it may not count all the time.
  * 
  * The scaling information will be used to scale the raw count
@@ -42,13 +42,38 @@
  * - TIME_RUNNING <= TIME_ENABLED
  * - TIME_RUNNING != 0 
  * - RAW_COUNT * TIME_ENABLED / TIME_RUNNING
+ *
+ * The read format *without* PERF_FORMAT_GROUP:
+ * {
+ *      u64  nr;
+ *      u64  time_enabled; // PERF_FORMAT_TOTAL_TIME_ENABLED 
+ *      u64  time_running; // PERF_FORMAT_TOTAL_TIME_RUNNING
+ * }
+ *
+ * The read format *with* PERF_FORMAT_GROUP enabled:
+ * {
+ *      u64  nr;
+ *      u64  time_enabled; // PERF_FORMAT_TOTAL_TIME_ENABLED 
+ *      u64  time_running; // PERF_FORMAT_TOTAL_TIME_RUNNING
+ *      {
+ *          u64  value;
+ *          u64  id;  // PERF_FORMAT_ID 
+ *      } cntr[nr];
+ * } // PERF_FORMAT_GROUP
+ *
+ * NOTE: perfm always enable PERF_FORMAT_TOTAL_TIME_ENABLED, PERF_FORMAT_TOTAL_TIME_RUNNING 
+ *       perf_event_open(2)
  */
-#ifdef  PERF_EVENT_READ_FORMAT_SCALE
-#undef  PERF_EVENT_READ_FORMAT_SCALE
-#endif
-#define PERF_EVENT_READ_FORMAT_SCALE (PERF_FORMAT_TOTAL_TIME_ENABLED | PERF_FORMAT_TOTAL_TIME_RUNNING)
 
-#define ERR_BUFSIZ 256
+#ifdef  PEV_RDFMT_TIMEING
+#undef  PEV_RDFMT_TIMEING
+#endif
+#define PEV_RDFMT_TIMEING (PERF_FORMAT_TOTAL_TIME_ENABLED | PERF_FORMAT_TOTAL_TIME_RUNNING)
+
+#define PEV_RDFMT_EVGROUP (PERF_FORMAT_GROUP)
+
+#define PERFM_BUFERR 256
+#define PERFM_BUFSIZ 8192
 
 namespace perfm {
 
