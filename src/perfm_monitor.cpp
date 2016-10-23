@@ -20,8 +20,8 @@ namespace perfm {
 void monitor_t::open()
 {
     // Check the existence of the target process & processor
-    int pid = perfm_options.pid();
-    int cpu = perfm_options.cpu();
+    int pid = perfm_options.pid;
+    int cpu = perfm_options.cpu;
 
     if (pid != -1) {
         if (access(std::string("/proc/" + std::to_string(pid) + "/status").c_str(), F_OK) != 0) {
@@ -44,7 +44,7 @@ void monitor_t::open()
     for (const auto &evg_list : ev_groups) {
         grp_list.push_back(group_t {});                
         auto grp = grp_list.rbegin();
-        grp->gr_open(evg_list, perfm_options.pid(), perfm_options.cpu(), perfm_options.plm()); 
+        grp->gr_open(evg_list, perfm_options.pid, perfm_options.cpu, perfm_options.plm); 
     }
 
     assert(grp_list.size() == ev_groups.size());
@@ -71,7 +71,7 @@ int monitor_t::rr()
 {
     int iter = 0;
 
-    while (iter < perfm_options.loops()) {
+    while (iter < perfm_options.loops) {
        
         assert(grp_list.size());
         for (size_t g = 0; g < grp_list.size(); ++g) {
@@ -79,7 +79,7 @@ int monitor_t::rr()
             grp_list[g].gr_start();
 
             // - 2. monitor for the specified time interval
-            nanoseconds_sleep(perfm_options.interval());
+            nanoseconds_sleep(perfm_options.interval);
             
             // - 3. stop the monitor
             grp_list[g].gr_stop();

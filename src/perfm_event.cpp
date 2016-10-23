@@ -60,13 +60,23 @@ int event_t::ev_open(const std::string &evn, pid_t pid, int grp, int cpu, unsign
         return -1;
     }
 
-    this->pea.disabled = -1 == this->grp ? 1 : 0;   /* disabled = 1 for group leader; disabled = 0 for group member */
+    /* disabled = 1 for group leader; disabled = 0 for group member */
+    this->pea.disabled = -1 == this->grp ? 1 : 0;
+
+    /* include timing information for scaling */
     if (perfm_options.rdfmt_timeing) {
-        this->pea.read_format |= PEV_RDFMT_TIMEING; /* include timing information for scaling */
+        this->pea.read_format |= PEV_RDFMT_TIMEING;
     }
+    
+    /* PERF_FORMAT_GROUP */
     if (perfm_options.rdfmt_evgroup && this->grp == -1) {
-        this->pea.read_format |= PEV_RDFMT_EVGROUP; /* PERF_FORMAT_GROUP */
+        this->pea.read_format |= PEV_RDFMT_EVGROUP;
     }
+
+    /* count events of child tasks as well as the task specified */
+    if (perfm_options.incl_children) {
+        this->pea.inherit = 1;
+    } 
 
     /* TODO */
 
@@ -106,7 +116,7 @@ bool event_t::ev_read()
 
 void event_t::ev_print() const
 {
-    FILE *fp = perfm_options.fp_output();
+    FILE *fp = perfm_options.out_fp;
     if (!fp) {
         fp = stdout;
     }

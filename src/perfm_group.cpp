@@ -81,6 +81,9 @@ int group_t::gr_open(const std::vector<std::string> &ev_argv, pid_t pid, int cpu
         if (perfm_options.rdfmt_evgroup && i == this->grp) {
             ev_list[i]->pea.read_format |= PEV_RDFMT_EVGROUP; /* PERF_FORMAT_GROUP */
         }
+        if (perfm_options.incl_children) {
+            ev_list[i]->pea.inherit = 1;
+        }
 
         ev_list[i]->grp = i == this->grp ? -1 : gr_leader()->ev_fd();
 
@@ -135,7 +138,7 @@ size_t group_t::gr_read()
 
 void group_t::gr_print() const
 {
-    FILE *fp = perfm_options.fp_output();
+    FILE *fp = perfm_options.out_fp;
     if (!fp) {
         fp = stdout;
     }

@@ -86,8 +86,8 @@ int options_t::parse_cmd_args(int argc, char **argv)
         for (int m = 0; m < PERFM_RUNNING_MODE_MAX; ++m) {
             int p = find(perfm_comm_switch[m], argv, argc);
             if (p != -1) {
-                perfm_options.__running_mode = static_cast<perfm_running_mode_t>(m);
-                perfm_comm_switch_id         = p;
+                perfm_options.running_mode = static_cast<perfm_running_mode_t>(m);
+                perfm_comm_switch_id       = p;
                 break;
             }
         }
@@ -122,7 +122,7 @@ int options_t::parse_cmd_args(int argc, char **argv)
     }
 
     /* Step 3. Parse Command-line Options */
-    if (perfm_options.running_mode() == PERFM_RUNNING_MODE_MONITOR) {
+    if (perfm_options.running_mode == PERFM_RUNNING_MODE_MONITOR) {
         // Case 1. runnning_mode: monitor
 
         const struct option comm_longopts[] = {
@@ -143,17 +143,17 @@ int options_t::parse_cmd_args(int argc, char **argv)
         while ((ch = getopt_long(argc - perfm_comm_switch_id, argv + perfm_comm_switch_id, comm_opts, comm_longopts, NULL)) != -1) {
             switch(ch) {
             case 't':
-                this->__interval = std::stod(optarg);
+                this->interval = std::stod(optarg);
                 break;
 
             case 'l':
-                this->__loops = std::atoi(optarg);
+                this->loops = std::atoi(optarg);
                 break;
 
             case 'i':
-                this->__in_file = std::move(std::string(optarg));
-                this->__in_fp   = ::fopen(optarg, "r");
-                if (!this->__in_fp) {
+                this->in_file = std::move(std::string(optarg));
+                this->in_fp   = ::fopen(optarg, "r");
+                if (!this->in_fp) {
                     char buferr[PERFM_BUFERR] = { '\0' };
                     strerror_r(errno, buferr, sizeof(buferr));
                     perfm_error("Error occured when opening the input file: %s, %s\n", optarg, buferr);
@@ -161,9 +161,9 @@ int options_t::parse_cmd_args(int argc, char **argv)
                 break;
 
             case 'o':
-                this->__out_file = std::move(std::string(optarg));
-                this->__out_fp   = ::fopen(optarg, "w");
-                if (!this->__out_fp) {
+                this->out_file = std::move(std::string(optarg));
+                this->out_fp   = ::fopen(optarg, "w");
+                if (!this->out_fp) {
                     char buferr[PERFM_BUFERR] = { '\0' };
                     strerror_r(errno, buferr, sizeof(buferr));
                     perfm_error("Error occured when opening the output file: %s, %s\n", optarg, buferr);
@@ -175,37 +175,37 @@ int options_t::parse_cmd_args(int argc, char **argv)
                 break;
 
             case 'c':
-                this->__cpu = std::atoi(optarg);
+                this->cpu = std::atoi(optarg);
                 break;
 
             case 'm':
-                this->__plm = std::move(std::string(optarg));
+                this->plm = std::move(std::string(optarg));
                 break;
 
             case 'p':
-                this->__pid = std::atoi(optarg);
+                this->pid = std::atoi(optarg);
                 break;
 
             case 'v':
-                this->__verbose = 1;
+                this->verbose = 1;
                 break;
 
             default:
                 return CMD_ARGS_ERROR;
             }
 
-            if (this->__interval < 0) {
-                this->__interval = 1;  /* 1 second */
+            if (this->interval < 0) {
+                this->interval = 1;  /* 1 second */
             }
 
-            if (this->__loops <= 0) {
-                this->__loops = 5;     /* 5 loops */
+            if (this->loops <= 0) {
+                this->loops = 5;     /* 5 loops */
             }
         }
     
-    } else if (perfm_options.running_mode() == PERFM_RUNNING_MODE_SAMPLE) {
+    } else if (perfm_options.running_mode == PERFM_RUNNING_MODE_SAMPLE) {
         perfm_error("%s\n", "TODO");    
-    } else if (perfm_options.running_mode() == PERFM_RUNNING_MODE_ANALYZE) {
+    } else if (perfm_options.running_mode == PERFM_RUNNING_MODE_ANALYZE) {
         perfm_error("%s\n", "TODO");    
     } else {
         perfm_error("%s\n", "This should NOT happen!");    
@@ -217,20 +217,20 @@ int options_t::parse_cmd_args(int argc, char **argv)
 void options_t::pr_options() const
 {
     FILE *fp = stdout;
-    int rmod = this->running_mode();
+    int rmod = this->running_mode;
 
     fprintf(fp, "-------------------------------------------------------\n");
     fprintf(fp, "- The global configure options for this run of perfm: -\n");
     fprintf(fp, "-------------------------------------------------------\n");
     fprintf(fp, "- perfm will run in mode: %7s                     -\n", perfm_comm_switch[rmod]);
     fprintf(fp, "-------------------------------------------------------\n");
-    fprintf(fp, "- Time (s) that an event set is monitored  : %lf(s)\n", this->interval());
-    fprintf(fp, "- # of times each event set is monitored   : %d\n",     this->loops());
-    fprintf(fp, "- Process/thread to monitor (pid/tid)      : %d\n",     this->pid());
-    fprintf(fp, "- Processor to monitor                     : %d\n",     this->cpu());
-    fprintf(fp, "- Input configure file                     : %s\n",     this->__in_file.c_str());      
-    fprintf(fp, "- Output result file                       : %s\n",     this->__out_file.c_str());      
-    fprintf(fp, "- Privilege level mask                     : %s\n",     this->plm().c_str());
+    fprintf(fp, "- Time (s) that an event set is monitored  : %lf(s)\n", this->interval);
+    fprintf(fp, "- # of times each event set is monitored   : %d\n",     this->loops);
+    fprintf(fp, "- Process/thread to monitor (pid/tid)      : %d\n",     this->pid);
+    fprintf(fp, "- Processor to monitor                     : %d\n",     this->cpu);
+    fprintf(fp, "- Input configure file                     : %s\n",     this->in_file.c_str());      
+    fprintf(fp, "- Output result file                       : %s\n",     this->out_file.c_str());      
+    fprintf(fp, "- Privilege level mask                     : %s\n",     this->plm.c_str());
     fprintf(fp, "- Total event groups to monitor            : %lu\n",    this->nr_groups());
     fprintf(fp, "-------------------------------------------------------\n");
 
