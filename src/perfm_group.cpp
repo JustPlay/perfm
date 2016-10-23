@@ -33,7 +33,6 @@ int group_t::gr_open(const std::vector<std::string> &ev_argv, pid_t pid, int cpu
 
     for (decltype(ev_argv.size()) i = 0; i < ev_argv.size(); ++i) {
         event_t::ptr_t ev = event_t::creat();
-        memset(&ev->pea, 0, sizeof(ev->pea));
 
         memset(&arg, 0, sizeof(arg));
         arg.attr = &ev->pea;
@@ -75,8 +74,13 @@ int group_t::gr_open(const std::vector<std::string> &ev_argv, pid_t pid, int cpu
 
     // Call perf_event_open() for each event in this group
     for (int i = 0; i < this->gr_size(); ++i) {
-        ev_list[i]->pea.disabled    = i == this->grp ? 1 : 0; /* disabled = 1 for group leader; disabled = 0 for others */
-        ev_list[i]->pea.read_format = PEV_RDFMT_TIMEING;      /* include timing information for scaling */
+        ev_list[i]->pea.disabled = i == this->grp ? 1 : 0;    /* disabled = 1 for group leader; disabled = 0 for others */
+        if (perfm_options.rdfmt_timeing) {
+            ev_list[i]->pea.read_format |= PEV_RDFMT_TIMEING; /* include timing information for scaling */
+        }
+        if (perfm_options.rdfmt_evgroup && i == this->grp) {
+            ev_list[i]->pea.read_format |= PEV_RDFMT_EVGROUP; /* PERF_FORMAT_GROUP */
+        }
 
         ev_list[i]->grp = i == this->grp ? -1 : gr_leader()->ev_fd();
 
@@ -108,13 +112,7 @@ size_t group_t::gr_read()
         }
 
         for (size_t i = 0; i < num_events; ++i) {
-            ev_list[i]->pmu_val_prev[0] = ev_list[i]->pmu_val_curr[0];
-            ev_list[i]->pmu_val_prev[1] = ev_list[i]->pmu_val_curr[1];
-            ev_list[i]->pmu_val_prev[2] = ev_list[i]->pmu_val_curr[2];
-
-            ev_list[i]->pmu_val_curr[0] = val[3 + i]; /* PMU vounter val */
-            ev_list[i]->pmu_val_curr[1] = val[1];     /* TIME_ENABLED */
-            ev_list[i]->pmu_val_curr[2] = val[2];     /* TIME_RUNNING */
+            ev_list[i]->set_pmu_val(val[3 + i], val[1], val[2]);
         }
 
         if (val) {
@@ -151,8 +149,8 @@ void group_t::gr_print() const
 
         fprintf(fp, "- Event - %s\n", evp->ev_nam().c_str());
 
-        fprintf(fp, "- curr pmu vals : %llu  %llu  %llu\n", evp->pmu_val_curr[0], evp->pmu_val_curr[1], evp->pmu_val_curr[2]);
-        fprintf(fp, "- prev pmu vals : %llu  %llu  %llu\n", evp->pmu_val_prev[0], evp->pmu_val_prev[1], evp->pmu_val_prev[2]);
+        fprintf(fp, "- curr pmu vals : %zu  %zu  %zu\n", evp->pmu_val_curr[0], evp->pmu_val_curr[1], evp->pmu_val_curr[2]);
+        fprintf(fp, "- prev pmu vals : %zu  %zu  %zu\n", evp->pmu_val_prev[0], evp->pmu_val_prev[1], evp->pmu_val_prev[2]);
 
         fprintf(fp, "\n");
     }

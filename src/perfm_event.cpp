@@ -60,8 +60,13 @@ int event_t::ev_open(const std::string &evn, pid_t pid, int grp, int cpu, unsign
         return -1;
     }
 
-    this->pea.disabled    = -1 == this->grp ? 1 : 0;   /* disabled = 1 for group leader; disabled = 0 for group member */
-    this->pea.read_format = PEV_RDFMT_TIMEING;         /* include timing information for scaling */
+    this->pea.disabled = -1 == this->grp ? 1 : 0;   /* disabled = 1 for group leader; disabled = 0 for group member */
+    if (perfm_options.rdfmt_timeing) {
+        this->pea.read_format |= PEV_RDFMT_TIMEING; /* include timing information for scaling */
+    }
+    if (perfm_options.rdfmt_evgroup && this->grp == -1) {
+        this->pea.read_format |= PEV_RDFMT_EVGROUP; /* PERF_FORMAT_GROUP */
+    }
 
     /* TODO */
 
@@ -118,8 +123,8 @@ void event_t::ev_print() const
     fprintf(fp, "- monitored cpu     : %d\n",  this->ev_cpu());
     fprintf(fp, "- monitored process : %d\n",  this->ev_pid());
 
-    fprintf(fp, "- curr pmu vals     : %llu  %llu  %llu\n", pmu_val_curr[0], pmu_val_curr[1], pmu_val_curr[2]);
-    fprintf(fp, "- prev pmu vals     : %llu  %llu  %llu\n", pmu_val_prev[0], pmu_val_prev[1], pmu_val_prev[2]);
+    fprintf(fp, "- curr pmu vals     : %zu  %zu  %zu\n", pmu_val_curr[0], pmu_val_curr[1], pmu_val_curr[2]);
+    fprintf(fp, "- prev pmu vals     : %zu  %zu  %zu\n", pmu_val_prev[0], pmu_val_prev[1], pmu_val_prev[2]);
 }
 
 } /* namespace perfm */

@@ -44,21 +44,21 @@
  * - RAW_COUNT * TIME_ENABLED / TIME_RUNNING
  *
  * The read format *without* PERF_FORMAT_GROUP:
- * {
- *      u64  nr;
- *      u64  time_enabled; // PERF_FORMAT_TOTAL_TIME_ENABLED 
- *      u64  time_running; // PERF_FORMAT_TOTAL_TIME_RUNNING
+ * struct {
+ *     u64 nr;
+ *     u64 time_enabled; // PERF_FORMAT_TOTAL_TIME_ENABLED 
+ *     u64 time_running; // PERF_FORMAT_TOTAL_TIME_RUNNING
  * }
  *
  * The read format *with* PERF_FORMAT_GROUP enabled:
- * {
- *      u64  nr;
- *      u64  time_enabled; // PERF_FORMAT_TOTAL_TIME_ENABLED 
- *      u64  time_running; // PERF_FORMAT_TOTAL_TIME_RUNNING
- *      {
- *          u64  value;
- *          u64  id;  // PERF_FORMAT_ID 
- *      } cntr[nr];
+ * struct {
+ *     u64 nr;
+ *     u64 time_enabled; // PERF_FORMAT_TOTAL_TIME_ENABLED 
+ *     u64 time_running; // PERF_FORMAT_TOTAL_TIME_RUNNING
+ *     {
+ *         u64 value;
+ *         u64 id;  // PERF_FORMAT_ID 
+ *     } cntr[nr];
  * } // PERF_FORMAT_GROUP
  *
  * NOTE: perfm always enable PERF_FORMAT_TOTAL_TIME_ENABLED, PERF_FORMAT_TOTAL_TIME_RUNNING 

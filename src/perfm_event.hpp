@@ -3,10 +3,14 @@
 
 #include <string>
 #include <memory>
+#include <tuple>
+#include <cstring>
 
 #include <sys/types.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
+
+#include <cstdint>
 
 #include <perfmon/pfmlib_perf_event.h>
 
@@ -17,7 +21,8 @@ class event_t {
     friend class group_t;
 
 public:
-    using ptr_t = std::shared_ptr<event_t>;
+    using ptr_t     = std::shared_ptr<event_t>;
+    using pmu_val_t = std::tuple<uint64_t, uint64_t, uint64_t>; /* 0: RAW PMU COUNT, 1: TIME_ENABLED, 2: TIME_RUNNING */
 
 public:
     static ptr_t creat() {
@@ -28,8 +33,28 @@ public:
         
     }
 
+    pmu_val_t get_pmu_val() const {
+        return std::make_tuple(pmu_val_curr[0], pmu_val_curr[1], pmu_val_curr[2]);
+    }
+
+    void set_pmu_val(uint64_t pmu_cntr_val, uint64_t time_enabled, uint64_t time_running) {
+        pmu_val_prev[0] = pmu_val_curr[0];
+        pmu_val_prev[1] = pmu_val_curr[1];
+        pmu_val_prev[2] = pmu_val_curr[2];
+
+        pmu_val_curr[0] = pmu_cntr_val;
+        pmu_val_curr[1] = time_enabled;
+        pmu_val_curr[2] = time_running;
+    }
+
+    void set_pmu_val(const pmu_val_t &pmu_cntr_val) {
+        set_pmu_val(std::get<0>(pmu_cntr_val), std::get<1>(pmu_cntr_val), std::get<2>(pmu_cntr_val));
+    }
+
 private:
-    event_t() = default;
+    event_t() {
+        memset(&this->pea, 0, sizeof(this->pea));
+    }
 
 public:
     /** 
@@ -96,24 +121,24 @@ public:
     }
 
     int ev_start() {
-        return ioctl(this->fd, PERF_EVENT_IOC_ENABLE, 0);
+        return ::ioctl(this->fd, PERF_EVENT_IOC_ENABLE, 0);
     }
 
     int ev_stop() {
-        return ioctl(this->fd, PERF_EVENT_IOC_DISABLE, 0);    
+        return ::ioctl(this->fd, PERF_EVENT_IOC_DISABLE, 0);    
     }
 
     int ev_reset() {
-        return ioctl(this->fd, PERF_EVENT_IOC_RESET, 0);
+        return ::ioctl(this->fd, PERF_EVENT_IOC_RESET, 0);
     }
 
     int ev_refresh() {
-        return ioctl(this->fd, PERF_EVENT_IOC_REFRESH, 0);
+        return ::ioctl(this->fd, PERF_EVENT_IOC_REFRESH, 0);
     }
 
 private:
-    unsigned long long pmu_val_curr[3]; /* 0: RAW PMU COUNT, 1: TIME_ENABLED, 2: TIME_RUNNING */
-    unsigned long long pmu_val_prev[3]; /* 0: RAW PMU COUNT, 1: TIME_ENABLED, 2: TIME_RUNNING */ 
+    uint64_t pmu_val_curr[3]; /* 0: RAW PMU COUNT, 1: TIME_ENABLED, 2: TIME_RUNNING */
+    uint64_t pmu_val_prev[3]; /* 0: RAW PMU COUNT, 1: TIME_ENABLED, 2: TIME_RUNNING */ 
 
     struct perf_event_attr pea;
 

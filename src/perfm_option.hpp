@@ -76,10 +76,13 @@ public:
     }
 
 public:
-    bool rdfmt_timeing = true; /* Always be true */
-    bool rdfmt_evgroup = true; /* Inherit does not work for some combinations of read_formats,
-                                * such as PERF_FORMAT_GROUP, see perf_event_open(2) for more detail.
-                                */
+    bool rdfmt_timeing = true;  /* Always be true */
+    bool rdfmt_evgroup = false; /* Reading all events in a group at once by just one read() call,
+                                 * NOTE: inherit does not work for some combinations of read_formats,
+                                 *       such as PERF_FORMAT_GROUP, see perf_event_open(2) for more detail.
+                                 */
+    bool incl_children = true;  /* The counter should count events of child tasks, see perf_event_open(2) */
+    bool start_on_exec = false; /* Start the counter automatically after a call to exec(2) */
 
 private:
     std::vector<std::string> ev_groups; /* event group list 
