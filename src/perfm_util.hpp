@@ -77,6 +77,8 @@
 
 namespace perfm {
 
+int str_find(char **argv, int argc, const char *trg);
+
 void nanoseconds_sleep(double seconds, bool use_abs_clock = false);
 
 bool pmu_is_available(pfm_pmu_t pmu);
@@ -125,6 +127,12 @@ std::vector<std::string> explode(const std::string &delimiter, const std::string
 inline std::vector<std::string> explode(const char *delimiter, const char *str, size_t limit = 0) 
 {
     return explode(std::string(delimiter), std::string(str), limit);
+}
+
+std::string str_trim(const std::string &);
+
+inline std::string str_trim(const char *str) {
+    return str_trim(std::string(str));
 }
 
 } /* namespace perfm */

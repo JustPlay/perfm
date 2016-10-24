@@ -24,25 +24,24 @@ int main(int argc, char **argv)
 
     // Step 1. parse & validate the command line options
     if (argc < 2) {
-        perfm::usage(basename(argv[0]));
+        perfm::usage();
         exit(EXIT_SUCCESS);
     }
 
     int is_args_valid = perfm::perfm_options.parse_cmd_args(argc, argv);
     
-    if (is_args_valid == CMD_ARGS_USAGE) {
-        perfm::usage(basename(argv[0]));
+    switch (is_args_valid) {
+    case COMM_OPTIONS_USAGE:
+        perfm::usage();
         exit(EXIT_SUCCESS);
-    }
-    
-    if (is_args_valid == CMD_ARGS_ERROR) {
-        perfm::usage(basename(argv[0]));
-        exit(EXIT_FAILURE);
-    }
+        
+    case COMM_OPTIONS_VERSION:
+        perfm::version();
+        exit(EXIT_SUCCESS);
 
-    if (is_args_valid == CMD_ARGS_VERSION) {
-        fprintf(stderr, "perfm v1.0.0\n");
-        exit(EXIT_SUCCESS);
+    case COMM_OPTIONS_ERROR:
+        fprintf(stderr, "Invalid arguments, use '-h' or '--help' to display usage info.\n");
+        exit(EXIT_FAILURE);
     }
 
 
@@ -55,17 +54,41 @@ int main(int argc, char **argv)
     }
 
     // Step 3. dump the configure for this run of perfm
-    perfm::pr_pmu_list();
+    if (perfm::perfm_options.list_pmu_avail) {
+        perfm::pr_pmu_list();
+    }
 
     perfm::perfm_options.pr_options();
 
     // Step 4. start the monitor
-    perfm::monitor_t pm;
-    pm.open();
-    pm.start();
-    pm.close();
+    switch (perfm::perfm_options.running_mode)
+    {
+        case PERFM_RUNNING_MODE_MONITOR: 
+        {
+            perfm::monitor_t pm;
+            pm.open();
+            pm.start();
+            pm.close();
+        }
+            break;
 
-    // Step X. free resources
+        case PERFM_RUNNING_MODE_SAMPLE:
+        {
+            /* TODO */                      
+        }
+            break;
+
+        case PERFM_RUNNING_MODE_ANALYZE:
+        {
+            /* TODO */
+        }
+            break;
+
+        default:
+            ;
+    }
+
+    // Step 5. free resources
     pfm_terminate();
 
     return 0;

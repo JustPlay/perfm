@@ -18,6 +18,21 @@ namespace perfm {
 
 class group_t {
 public:
+    using ptr_t = std::shared_ptr<group_t>;
+
+public:
+    static ptr_t creat() {
+        return ptr_t(new group_t);
+    }
+
+    virtual ~group_t() {
+    
+    }
+
+private:
+    group_t() = default;
+
+public:
     /**
      * gr_open - Encode & Open the event group for monitoring
      *

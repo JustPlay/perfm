@@ -34,17 +34,17 @@ public:
     }
 
     pmu_val_t get_pmu_val() const {
-        return std::make_tuple(pmu_val_curr[0], pmu_val_curr[1], pmu_val_curr[2]);
+        return std::make_tuple(pmu_curr[0], pmu_curr[1], pmu_curr[2]);
     }
 
     void set_pmu_val(uint64_t pmu_cntr_val, uint64_t time_enabled, uint64_t time_running) {
-        pmu_val_prev[0] = pmu_val_curr[0];
-        pmu_val_prev[1] = pmu_val_curr[1];
-        pmu_val_prev[2] = pmu_val_curr[2];
+        pmu_prev[0] = pmu_curr[0];
+        pmu_prev[1] = pmu_curr[1];
+        pmu_prev[2] = pmu_curr[2];
 
-        pmu_val_curr[0] = pmu_cntr_val;
-        pmu_val_curr[1] = time_enabled;
-        pmu_val_curr[2] = time_running;
+        pmu_curr[0] = pmu_cntr_val;
+        pmu_curr[1] = time_enabled;
+        pmu_curr[2] = time_running;
     }
 
     void set_pmu_val(const pmu_val_t &pmu_cntr_val) {
@@ -98,6 +98,8 @@ public:
     bool ev_read();
     bool ev_copy();
 
+    uint64_t ev_scale() const;
+
     void ev_print() const;
 
     std::string ev_nam() const {
@@ -137,8 +139,8 @@ public:
     }
 
 private:
-    uint64_t pmu_val_curr[3]; /* 0: RAW PMU COUNT, 1: TIME_ENABLED, 2: TIME_RUNNING */
-    uint64_t pmu_val_prev[3]; /* 0: RAW PMU COUNT, 1: TIME_ENABLED, 2: TIME_RUNNING */ 
+    uint64_t pmu_curr[3]; /* 0: RAW PMU COUNT, 1: TIME_ENABLED, 2: TIME_RUNNING */
+    uint64_t pmu_prev[3]; /* 0: RAW PMU COUNT, 1: TIME_ENABLED, 2: TIME_RUNNING */ 
 
     struct perf_event_attr pea;
 

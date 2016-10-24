@@ -103,7 +103,7 @@ size_t group_t::gr_read()
 
         uint64_t *val = new uint64_t[siz_buffer];
         if (!val) {
-            perfm_error("Can't allocate memory: %" PRIu64 " bytes\n", siz_buffer);
+            perfm_error("Can't allocate memory: %zu bytes\n", siz_buffer);
         }
 
         ssize_t ret = ::read(this->gr_leader()->ev_fd(), val, siz_buffer);
@@ -152,8 +152,8 @@ void group_t::gr_print() const
 
         fprintf(fp, "- Event - %s\n", evp->ev_nam().c_str());
 
-        fprintf(fp, "- curr pmu vals : %zu  %zu  %zu\n", evp->pmu_val_curr[0], evp->pmu_val_curr[1], evp->pmu_val_curr[2]);
-        fprintf(fp, "- prev pmu vals : %zu  %zu  %zu\n", evp->pmu_val_prev[0], evp->pmu_val_prev[1], evp->pmu_val_prev[2]);
+        fprintf(fp, "- curr pmu vals : %zu  %zu  %zu\n", evp->pmu_curr[0], evp->pmu_curr[1], evp->pmu_curr[2]);
+        fprintf(fp, "- prev pmu vals : %zu  %zu  %zu\n", evp->pmu_prev[0], evp->pmu_prev[1], evp->pmu_prev[2]);
 
         fprintf(fp, "\n");
     }

@@ -23,6 +23,47 @@ const char *pmu_type_desc[PFM_PMU_TYPE_MAX] = {
 
 namespace perfm {
 
+std::string str_trim(const std::string &str)
+{
+    if (str.empty()) {
+        return str;
+    }
+
+    std::string::size_type s = 0, e = str.size() - 1;
+
+    while (s <= e && std::isspace(str[s])) {
+        ++s;
+    }
+
+    while (e >= s && std::isspace(str[e])) {
+        --e;
+    }
+
+    if (s <= e) {
+        return str.substr(s, e - s + 1);
+    }
+    
+    return "";
+}
+
+// @argv  same as 'argv' in main()
+// @argc  same as 'argc' in main()
+// @trg   pointer to a '\0' ended C string
+int str_find(char **argv, int argc, const char *trg)
+{
+    if (!trg || !argv || argc <= 0) {
+        return -1;
+    }
+
+    for (int i = 0; i < argc; ++i) {
+        if (std::strcmp(trg, argv[i]) == 0) {
+            return i;
+        }  
+    }
+
+    return -1;
+}
+
 void nanoseconds_sleep(double seconds, bool use_abs_clock)
 {
     long int sec  = static_cast<long int>(seconds);

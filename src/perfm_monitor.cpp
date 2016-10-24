@@ -19,10 +19,8 @@ namespace perfm {
 
 void monitor_t::open()
 {
-    // Check the existence of the target process & processor
+    /* Check the existence of the target process */
     int pid = perfm_options.pid;
-    int cpu = perfm_options.cpu;
-
     if (pid != -1) {
         if (access(std::string("/proc/" + std::to_string(pid) + "/status").c_str(), F_OK) != 0) {
             fprintf(stderr, "The target process [%d] does NOT existed, Exiting...\n", pid);        
@@ -30,6 +28,8 @@ void monitor_t::open()
         }
     }
 
+    /* Check the existence of the target processor */
+    int cpu = perfm_options.cpu;
     if (cpu != -1) {
         int nr_cpu_onln = sysconf(_SC_NPROCESSORS_ONLN); 
         if (cpu >= nr_cpu_onln) {
@@ -38,13 +38,16 @@ void monitor_t::open()
         }
     }
 
-    // Open event groups
+    /* Permissions checking */
+    /* TODO */
+
+    /* Open event groups */
     auto ev_groups = perfm_options.get_event_groups(); 
     
     for (const auto &evg_list : ev_groups) {
-        grp_list.push_back(group_t {});                
-        auto grp = grp_list.rbegin();
+        group_t::ptr_t grp = group_t::creat();
         grp->gr_open(evg_list, perfm_options.pid, perfm_options.cpu, perfm_options.plm); 
+        grp_list.push_back(grp);                
     }
 
     assert(grp_list.size() == ev_groups.size());
@@ -53,7 +56,7 @@ void monitor_t::open()
 void monitor_t::close()
 {
     for (decltype(grp_list.size()) i = 0; i < grp_list.size(); ++i) {
-        grp_list[i].gr_close();
+        grp_list[i]->gr_close();
     }
 }
 
@@ -76,17 +79,17 @@ int monitor_t::rr()
         assert(grp_list.size());
         for (size_t g = 0; g < grp_list.size(); ++g) {
             // - 1. start the monitor
-            grp_list[g].gr_start();
+            grp_list[g]->gr_start();
 
             // - 2. monitor for the specified time interval
             nanoseconds_sleep(perfm_options.interval);
             
             // - 3. stop the monitor
-            grp_list[g].gr_stop();
+            grp_list[g]->gr_stop();
 
             // - 4. read/print the PMU values
-            grp_list[g].gr_read();
-            grp_list[g].gr_print();
+            grp_list[g]->gr_read();
+            grp_list[g]->gr_print();
         }
  
         ++iter;

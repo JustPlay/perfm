@@ -30,7 +30,7 @@ private:
     int rr();
 
 private:
-    std::vector<group_t> grp_list; /* event group list */
+    std::vector<group_t::ptr_t> grp_list; /* event group list */
 };
 
 } /* namespace perfm */

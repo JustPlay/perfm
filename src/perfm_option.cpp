@@ -1,7 +1,11 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <cctype>
 #include <string>
+#include <iostream>
+#include <fstream>
+#include <sstream>
 
 #include <errno.h>
 #include <getopt.h>
@@ -21,57 +25,75 @@ const char *perfm_comm_switch[PERFM_RUNNING_MODE_MAX] = {
 
 void usage(const char *cmd) 
 {
-    fprintf(stderr, "perfm - A performance monitor, sampler, analyzer (powered by libpfm4 & perf_event).\n");
-    fprintf(stderr, "\n");
+    fprintf(stderr,
+            "perfm - A performance monitor, sampler, analyzer (powered by libpfm4 & perf_event).\n\n"
+            "Usage:\n"
+            "        %s [general-options] command <command-options>\n\n", cmd
+            );
 
-    fprintf(stderr, "Usage:\n");
-    fprintf(stderr, "        %s [general-options] command <command-options>\n", cmd);
-    fprintf(stderr, "\n");
+    fprintf(stderr,
+            "General Options:\n"
+            "  -h, --help                        Display this help information.\n"
+            "  -V, --version                     Display version information.\n"
+            "\n"
+           );
 
-    fprintf(stderr, "General Options:\n");
-    fprintf(stderr, "  -h, --help                        Display this help information.\n");
-    fprintf(stderr, "  -V, --version                     Display version information.\n");
-    fprintf(stderr, "\n");
+    fprintf(stderr,
+            "Commands:\n"
+            "  monitor                           perfm will run in counting mode.\n"
+            "  sample                            perfm will run in sampling mode.\n"
+            "  analyze                           analyze the collected data.\n"
+            "\n");
 
-    fprintf(stderr, "Commands:\n");
-    fprintf(stderr, "  monitor                           perfm will run in counting mode.\n");
-    fprintf(stderr, "  sample                            perfm will run in sampling mode.\n");
-    fprintf(stderr, "  analyze                           analyze the collected data.\n");
-    fprintf(stderr, "\n");
+    fprintf(stderr,
+            "Commandline Options for: monitor\n"
+            "  -l, --loop <loops>                The # of times each event set is monitored.\n"
+            "  -t, --time <interval>             Time (s) that an event set is monitored.\n"
+            "  -e, --event <event1,event2;...>   Event list to be monitored.\n"
+            "  -i, --input <input file path>     Input file for perfm.\n"
+            "  -o, --output <output file path>   Output file.\n"
+            "  -c, --cpu <cpu>                   Which CPU to monitor; -1 for all CPUs.\n"
+            "  -p, --pid <pid>                   Which PID to monitor; -1 for all PIDs.\n"
+            "  -v, --verbose                     Run perfm in verbose mode.\n"
+            "  -m, --plm <plm string>            Privilege level mask.\n"
+            "  --incl-children                   TODO\n"
+            "\n");
 
-    fprintf(stderr, "Commandline Options for: monitor\n");
-    fprintf(stderr, "  -l, --loop <loops>                The # of times each event set is monitored.\n");
-    fprintf(stderr, "  -t, --time <interval>             Time (s) that an event set is monitored.\n");
-    fprintf(stderr, "  -e, --event <event1,event2;...>   Event list to be monitored.\n");
-    fprintf(stderr, "  -i, --input <input file path>     Input file for perfm.\n");
-    fprintf(stderr, "  -o, --output <output file path>   Output file.\n");
-    fprintf(stderr, "  -c, --cpu <cpu>                   Which CPU to monitor; -1 for all CPUs.\n");
-    fprintf(stderr, "  -p, --pid <pid>                   Which PID to monitor; -1 for all PIDs.\n");
-    fprintf(stderr, "  -v, --verbose                     Run perfm in verbose mode.\n");
-    fprintf(stderr, "  -m, --plm <plm string>            Privilege level mask.\n");
-    fprintf(stderr, "\n");
-
-    fprintf(stderr, "Commandline Options for: analyze\n");
-    fprintf(stderr, "  -i, --input <input file path>     Input file for perfm.\n");
-    fprintf(stderr, "  -o, --output <output file path>   Output file.\n");
+    fprintf(stderr,
+            "Commandline Options for: analyze\n"
+            "  -i, --input <input file path>     Input file for perfm.\n"
+            "  -o, --output <output file path>   Output file.\n"
+            );
 }
 
-// @trg   pointer to a '\0' ended C string
-// @argc  same as 'argc' in main()
-// @argv  same as 'argv' in main()
-int find(const char *trg,  char **argv, int argc)
+bool options_t::parse_evcfg_file()
 {
-    if (!trg || !argv || argc <= 0) {
-        return -1;
+    this->ev_groups.clear();
+
+    if (this->in_file == "") {
+        return false;
+    } 
+
+    std::fstream fin(this->in_file, std::ios_base::in);
+    std::string line;
+    std::string evgrp;
+    
+    while (std::getline(fin, line)) {
+        std::string event = str_trim(line);
+
+        if (event.empty() || event[0] == '#') {
+            continue;
+        } 
+
+        if (event == ";") {
+            this->ev_groups.push_back(evgrp);
+            evgrp.clear();
+        } else {
+            evgrp += evgrp.empty() ? event : "," + event;
+        }
     }
 
-    for (int i = 0; i < argc; ++i) {
-        if (std::strcmp(trg, argv[i]) == 0) {
-            return i;
-        }  
-    }
-
-    return -1;
+    return true;
 }
 
 int options_t::parse_cmd_args(int argc, char **argv) 
@@ -84,7 +106,7 @@ int options_t::parse_cmd_args(int argc, char **argv)
 
     { /* Step 1. Parse Command Switch */
         for (int m = 0; m < PERFM_RUNNING_MODE_MAX; ++m) {
-            int p = find(perfm_comm_switch[m], argv, argc);
+            int p = str_find(argv, argc, perfm_comm_switch[m]);
             if (p != -1) {
                 perfm_options.running_mode = static_cast<perfm_running_mode_t>(m);
                 perfm_comm_switch_id       = p;
@@ -106,48 +128,61 @@ int options_t::parse_cmd_args(int argc, char **argv)
             switch(ch) {
             case '?':
             case 'h':
-                return CMD_ARGS_USAGE;
+                return COMM_OPTIONS_USAGE;
 
             case 'V':
-                return CMD_ARGS_VERSION;
+                return COMM_OPTIONS_VERSION;
 
             default:
-                return CMD_ARGS_ERROR;
+                return COMM_OPTIONS_ERROR;
             }
         }
 
         if (!perfm_comm_switch_id) {
-            return CMD_ARGS_USAGE;
+            return COMM_OPTIONS_USAGE;
         }
     }
 
     /* Step 3. Parse Command-line Options */
+    if (perfm_comm_switch_id == argc - 1) {
+        return COMM_OPTIONS_ERROR;
+    }
+
     if (perfm_options.running_mode == PERFM_RUNNING_MODE_MONITOR) {
         // Case 1. runnning_mode: monitor
 
         const struct option comm_longopts[] = {
-            {"verbose", no_argument,       NULL, 'v'},
-            {"loop",    required_argument, NULL, 'l'},
-            {"time",    required_argument, NULL, 't'},
-            {"event",   required_argument, NULL, 'e'},
-            {"input",   required_argument, NULL, 'i'},
-            {"output",  required_argument, NULL, 'o'},
-            {"cpu",     required_argument, NULL, 'c'},
-            {"plm",     required_argument, NULL, 'm'},
-            {"pid",     required_argument, NULL, 'p'},
-            {NULL,      no_argument,       NULL,  0 },
+            {"verbose",       no_argument,       NULL, 'v'},
+            {"loop",          required_argument, NULL, 'l'},
+            {"time",          required_argument, NULL, 't'},
+            {"event",         required_argument, NULL, 'e'},
+            {"input",         required_argument, NULL, 'i'},
+            {"output",        required_argument, NULL, 'o'},
+            {"cpu",           required_argument, NULL, 'c'},
+            {"plm",           required_argument, NULL, 'm'},
+            {"pid",           required_argument, NULL, 'p'},
+            {"incl-children", no_argument,       NULL,  1 },
+            {NULL,            no_argument,       NULL,  0 },
         };
 
         const char *comm_opts= "vl:t:e:i:o:c:m:p:";
 
         while ((ch = getopt_long(argc - perfm_comm_switch_id, argv + perfm_comm_switch_id, comm_opts, comm_longopts, NULL)) != -1) {
             switch(ch) {
-            case 't':
-                this->interval = std::stod(optarg);
+            case 'v':
+                this->verbose = 1;
                 break;
 
             case 'l':
                 this->loops = std::atoi(optarg);
+                break;
+
+            case 't':
+                this->interval = std::stod(optarg);
+                break;
+
+            case 'e':
+                this->ev_groups = explode(";", optarg, options_t::nr_group_supp());
                 break;
 
             case 'i':
@@ -170,28 +205,24 @@ int options_t::parse_cmd_args(int argc, char **argv)
                 }
                 break;
 
-            case 'e':
-                this->ev_groups = explode(";", optarg, options_t::nr_group_supp());
-                break;
-
             case 'c':
                 this->cpu = std::atoi(optarg);
                 break;
 
             case 'm':
                 this->plm = std::move(std::string(optarg));
-                break;
+             break;
 
             case 'p':
                 this->pid = std::atoi(optarg);
                 break;
 
-            case 'v':
-                this->verbose = 1;
+            case 1:
+                this->incl_children = true;
                 break;
 
             default:
-                return CMD_ARGS_ERROR;
+                return COMM_OPTIONS_ERROR;
             }
 
             if (this->interval < 0) {
@@ -211,7 +242,7 @@ int options_t::parse_cmd_args(int argc, char **argv)
         perfm_error("%s\n", "This should NOT happen!");    
     }
 
-    return CMD_ARGS_VALID;
+    return COMM_OPTIONS_VALID;
 }
 
 void options_t::pr_options() const
@@ -219,8 +250,6 @@ void options_t::pr_options() const
     FILE *fp = stdout;
     int rmod = this->running_mode;
 
-    fprintf(fp, "-------------------------------------------------------\n");
-    fprintf(fp, "- The global configure options for this run of perfm: -\n");
     fprintf(fp, "-------------------------------------------------------\n");
     fprintf(fp, "- perfm will run in mode: %7s                     -\n", perfm_comm_switch[rmod]);
     fprintf(fp, "-------------------------------------------------------\n");

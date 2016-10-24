@@ -98,12 +98,12 @@ bool event_t::ev_read()
 {
     bool is_read_succ = true;
 
-    this->pmu_val_prev[0] = this->pmu_val_curr[0];
-    this->pmu_val_prev[1] = this->pmu_val_curr[1];
-    this->pmu_val_prev[2] = this->pmu_val_curr[2];
+    this->pmu_prev[0] = this->pmu_curr[0];
+    this->pmu_prev[1] = this->pmu_curr[1];
+    this->pmu_prev[2] = this->pmu_curr[2];
 
-    ssize_t ret = ::read(this->fd, this->pmu_val_curr, sizeof(this->pmu_val_curr)); 
-    if (ret != sizeof(this->pmu_val_curr) && ret != sizeof(this->pmu_val_curr[0])) {
+    ssize_t ret = ::read(this->fd, this->pmu_curr, sizeof(this->pmu_curr)); 
+    if (ret != sizeof(this->pmu_curr) && ret != sizeof(this->pmu_curr[0])) {
         char buferr[PERFM_BUFERR] = { '\0' };
         strerror_r(errno, buferr, sizeof(buferr));
         perfm_warning("Read PMU counters failed, %s\n", buferr);
@@ -112,6 +112,26 @@ bool event_t::ev_read()
     }
 
     return is_read_succ;
+}
+
+
+uint64_t event_t::ev_scale() const
+{
+    uint64_t res = 0;
+
+    if (pmu_curr[2] > pmu_curr[1]) {
+        perfm_warning("Running time (%zu) > Enabled time (%zu).\n", pmu_curr[2], pmu_curr[1]);
+    }
+
+    if (pmu_curr[2] == 0 || pmu_curr[0] != 0) {
+        perfm_warning("Running time *zero*, Scaling failed. %zu, %zu, %zu", pmu_curr[0], pmu_curr[1], pmu_curr[2]);
+    }
+
+    if (pmu_curr[2] != 0) {
+        res = static_cast<uint64_t>(1.0 * pmu_curr[0] * pmu_curr[1] / pmu_curr[2]);
+    }
+    
+    return res;
 }
 
 void event_t::ev_print() const
@@ -133,8 +153,8 @@ void event_t::ev_print() const
     fprintf(fp, "- monitored cpu     : %d\n",  this->ev_cpu());
     fprintf(fp, "- monitored process : %d\n",  this->ev_pid());
 
-    fprintf(fp, "- curr pmu vals     : %zu  %zu  %zu\n", pmu_val_curr[0], pmu_val_curr[1], pmu_val_curr[2]);
-    fprintf(fp, "- prev pmu vals     : %zu  %zu  %zu\n", pmu_val_prev[0], pmu_val_prev[1], pmu_val_prev[2]);
+    fprintf(fp, "- curr pmu vals     : %zu  %zu  %zu\n", pmu_curr[0], pmu_curr[1], pmu_curr[2]);
+    fprintf(fp, "- prev pmu vals     : %zu  %zu  %zu\n", pmu_prev[0], pmu_prev[1], pmu_prev[2]);
 }
 
 } /* namespace perfm */

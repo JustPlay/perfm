@@ -6,10 +6,10 @@
 
 #include <sys/types.h>
 
-#define CMD_ARGS_ERROR    -1
-#define CMD_ARGS_VALID     0
-#define CMD_ARGS_USAGE     1
-#define CMD_ARGS_VERSION   2
+#define COMM_OPTIONS_ERROR    -1
+#define COMM_OPTIONS_VALID     0
+#define COMM_OPTIONS_USAGE     1
+#define COMM_OPTIONS_VERSION   2
 
 typedef enum {
     PERFM_RUNNING_MODE_MONITOR = 0,
@@ -23,6 +23,18 @@ namespace perfm {
 class options_t {
 
 public:
+    options_t() = default;
+
+    ~options_t() {
+        if (in_fp) {
+            ::fclose(in_fp);
+        }
+
+        if (out_fp) {
+            ::fclose(out_fp);
+        }
+    }
+
     int parse_cmd_args(int argc, char **argv);
 
     void pr_options() const;
@@ -43,22 +55,26 @@ public:
         return options_t::max_nr_evts;
     }
 
+private:
+    bool parse_evcfg_file();
+
 public:
-    bool rdfmt_timeing = true;  /* Always be true */
-    bool rdfmt_evgroup = false; /* Reading all events in a group at once by just one read() call,
-                                 * NOTE: inherit does not work for some combinations of read_formats,
-                                 *       such as PERF_FORMAT_GROUP, see perf_event_open(2) for more detail.
-                                 */
-    bool incl_children = true;  /* The counter should count events of child tasks, see perf_event_open(2) */
-    bool start_on_exec = false; /* Start the counter automatically after a call to exec(2) */
+    bool rdfmt_timeing = true;   /* Always be true */
+    bool rdfmt_evgroup = false;  /* Reading all events in a group at once by just one read() call,
+                                  * NOTE: inherit does not work for some combinations of read_formats,
+                                  *       such as PERF_FORMAT_GROUP, see perf_event_open(2) for more detail.
+                                  */
 
-    double interval;          /* Time (s) that an event group is monitored */
-    int loops;                /* The number of times each event group is monitored */
-    pid_t pid;                /* Process/thread id to be monitored */
+    bool incl_children = false;  /* The counter should count events of child tasks, see perf_event_open(2) */
+    bool start_on_exec = false;  /* Start the counter automatically after a call to exec(2) */
 
-    int verbose = 0;          /* Verbose level */
-    int cpu = -1;             /* The CPU to be monitered; -1 for all CPUs */
-    std::string plm = "ukh";  /* Privilege level mask */
+    double interval;             /* Time (s) that an event group is monitored */
+    int loops;                   /* The number of times each event group is monitored */
+    pid_t pid;                   /* Process/thread id to be monitored */
+
+    int verbose = 0;             /* Verbose level */
+    int cpu = -1;                /* The CPU to be monitered; -1 for all CPUs */
+    std::string plm = "ukh";     /* Privilege level mask */
 
     std::string in_file;
     std::string out_file;
@@ -67,14 +83,16 @@ public:
     FILE *out_fp = NULL;
 
     static constexpr int max_nr_grps = 64;  /* the maximum number of event groups support by perfm,
-                                               * for now, the value is 64
-                                               */
+                                             * for now, the value is 64
+                                             */
 
     static constexpr int max_nr_evts = 32;  /* the maximum number of events in one group support by perfm,
-                                               * for now, we support a maximum of 32 events in one group,
-                                               * which would be large enough
-                                               */ 
+                                             * for now, we support a maximum of 32 events in one group,
+                                             * which would be large enough
+                                             */ 
     perfm_running_mode_t running_mode = PERFM_RUNNING_MODE_MONITOR;
+
+    bool list_pmu_avail = false; /* list the available PMUs */
 
 private:
     std::vector<std::string> ev_groups; /* event group list 
@@ -89,6 +107,11 @@ private:
 extern options_t perfm_options; /* the global configure options */
 
 void usage(const char *cmd = "perfm");
+
+inline void version() {
+    fprintf(stderr, "perfm - in developing...\n");
+}
+
 
 } /* namespace perfm */
 
