@@ -1,3 +1,7 @@
+/**
+ * perfm_sampler.hpp - TODO
+ *
+ */
 #ifndef __PERFM_SAMPLER_HPP__
 #define __PERFM_SAMPLER_HPP__
 

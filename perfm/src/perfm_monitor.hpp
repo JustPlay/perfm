@@ -1,5 +1,5 @@
 /**
- * permf_monitor.hpp - interface for perfm monitor
+ * perfm_monitor.hpp - interface for perfm monitor
  *
  */
 #ifndef __PERFM_MONITOR_HPP__
@@ -34,7 +34,7 @@ private:
     int rr();
 
 private:
-    std::vector<group_t::ptr_t> grp_list; /* event group list */
+    std::vector<evgrp_t::ptr_t> grp_list; /* event group list */
 };
 
 } /* namespace perfm */

@@ -31,8 +31,17 @@ void monitor_t::open()
     /* Check the existence of the target processor */
     int cpu = perfm_options.cpu;
     if (cpu != -1) {
+        bool is_onln = true;
+
         int nr_cpu_onln = sysconf(_SC_NPROCESSORS_ONLN); 
-        if (cpu >= nr_cpu_onln) {
+        /*
+         * when cpuX is online, '/sys/devices/system/cpu/cpuX/cache' EXISTS on x86 linux, otherwise NOT
+         */
+        if (cpu >= nr_cpu_onln || access(std::string("/sys/devices/system/cpu/cpu" + std::to_string(cpu) + "/cache").c_str(), F_OK) != 0) {
+            is_onln = false;
+        } 
+        
+        if (!is_onln) {
             fprintf(stderr, "The target CPU [%d] does NOT existed or online, Exiting...\n", cpu);        
             exit(EXIT_FAILURE);
         }
@@ -44,9 +53,9 @@ void monitor_t::open()
     /* Open event groups */
     auto ev_groups = perfm_options.get_event_groups(); 
     
-    for (const auto &evg_list : ev_groups) {
-        group_t::ptr_t grp = group_t::creat();
-        grp->gr_open(evg_list, perfm_options.pid, perfm_options.cpu, perfm_options.plm); 
+    for (const auto &ev_list : ev_groups) {
+        evgrp_t::ptr_t grp = evgrp_t::creat();
+        grp->gr_open(ev_list, perfm_options.pid, perfm_options.cpu, perfm_options.plm); 
         grp_list.push_back(grp);                
     }
 

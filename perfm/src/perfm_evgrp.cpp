@@ -16,13 +16,13 @@
 
 namespace perfm {
 
-int group_t::gr_open(const std::string &ev_list, pid_t pid, int cpu, const std::string &plm)
+int evgrp_t::gr_open(const std::string &ev_list, pid_t pid, int cpu, const std::string &plm)
 {
     auto ev_argv = explode(",", ev_list, options_t::nr_event_supp()); 
     return this->gr_open(ev_argv, pid, cpu, plm);
 }
 
-int group_t::gr_open(const std::vector<std::string> &ev_argv, pid_t pid, int cpu, const std::string &plm)
+int evgrp_t::gr_open(const std::vector<std::string> &ev_argv, pid_t pid, int cpu, const std::string &plm)
 {
     this->pid = pid;
     this->cpu = cpu;
@@ -95,7 +95,7 @@ int group_t::gr_open(const std::vector<std::string> &ev_argv, pid_t pid, int cpu
     return gr_leader()->ev_fd(); /* return the group leader's perf_event fd */
 }
 
-size_t group_t::gr_read()
+size_t evgrp_t::gr_read()
 {
     if (perfm_options.rdfmt_evgroup) {
         size_t num_events = this->gr_size();
@@ -136,7 +136,7 @@ size_t group_t::gr_read()
     }
 }
 
-void group_t::gr_print() const
+void evgrp_t::gr_print() const
 {
     FILE *fp = perfm_options.out_fp;
     if (!fp) {

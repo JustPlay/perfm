@@ -20,9 +20,9 @@
 
 namespace perfm {
 
-class group_t;
+class evgrp_t;
 class event_t {
-    friend class group_t;
+    friend class evgrp_t;
 
 public:
     using ptr_t      = std::shared_ptr<event_t>;
@@ -89,7 +89,7 @@ public:
      *     e.g. called by 
      *            event_t::ev_open(const std::string &, ...)
      *          OR
-     *            group_t::gr_open(...)
+     *            evgrp_t::gr_open(...)
      */
     int ev_open();
     int ev_close();

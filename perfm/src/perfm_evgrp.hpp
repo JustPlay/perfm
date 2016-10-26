@@ -20,21 +20,21 @@
 
 namespace perfm {
 
-class group_t {
+class evgrp_t {
 public:
-    using ptr_t = std::shared_ptr<group_t>;
+    using ptr_t = std::shared_ptr<evgrp_t>;
 
 public:
     static ptr_t creat() {
-        return ptr_t(new group_t);
+        return ptr_t(new evgrp_t);
     }
 
-    virtual ~group_t() {
+    virtual ~evgrp_t() {
     
     }
 
 private:
-    group_t() = default;
+    evgrp_t() = default;
 
 public:
     /**
@@ -98,10 +98,10 @@ private:
                                           */
 
     int grp = 0;           /* group leader's subscipt in ev_list; for now it should always be 0 */
-    int cpu = -1;          /* which CPU to monitor; -1 for any CPU */
-    pid_t pid;             /* which process to monitor; -1 for any process */
+    int cpu = -1;          /* which CPU to monitor, -1 for any CPU */
+    pid_t pid;             /* which process to monitor, -1 for any process */
     unsigned long flg = 0; /* flags used by perf_event_open() */
-    unsigned long plm = 0; /* privilege level mask; this value should NOT be zero */
+    unsigned long plm = 0; /* privilege level mask, this value should NOT be zero */
 };
 
 } /* namespace perfm */
