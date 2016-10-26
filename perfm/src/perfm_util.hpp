@@ -1,3 +1,7 @@
+/**
+ * perfm_util.hpp - helper functions for perfm
+ *
+ */
 #ifndef __PERFM_UTIL_HPP__
 #define __PERFM_UTIL_HPP__
 
@@ -17,19 +21,19 @@
 // #define LOG(format, args...) fprintf(stdout, format, ##args)
 //
 
-#define perfm_error(fmt, ...) do {                                                             \
-    fprintf(stderr, "[FILE: %s, LINE: %d, FUNC: %s()]: ", __FILE__, __LINE__, __FUNCTION__);   \
-    fprintf(stderr, fmt, ##__VA_ARGS__);                                                       \
-    exit(EXIT_FAILURE);                                                                        \
+#define perfm_error(fmt, ...) do {                                           \
+    fprintf(stderr, "[%s, %d, %s()]: ", __FILE__, __LINE__, __FUNCTION__);   \
+    fprintf(stderr, fmt, ##__VA_ARGS__);                                     \
+    exit(EXIT_FAILURE);                                                      \
 } while (0)
 
-#define perfm_warning(fmt, ...) do {                                                           \
-    fprintf(stderr, "[FILE: %s, LINE: %d, FUNC: %s()]: ", __FILE__, __LINE__, __FUNCTION__);   \
-    fprintf(stderr, fmt, ##__VA_ARGS__);                                                       \
+#define perfm_warning(fmt, ...) do {                                         \
+    fprintf(stderr, "[%s, %d, %s()]: ", __FILE__, __LINE__, __FUNCTION__);   \
+    fprintf(stderr, fmt, ##__VA_ARGS__);                                     \
 } while (0)
 
-#define perfm_message(fmt, ...) do {                                                           \
-    fprintf(stdout, fmt, ##__VA_ARGS__);                                                       \
+#define perfm_message(fmt, ...) do {                                         \
+    fprintf(stdout, fmt, ##__VA_ARGS__);                                     \
 } while (0)
 
 /*

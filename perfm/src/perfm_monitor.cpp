@@ -12,7 +12,7 @@
 
 #include "perfm_util.hpp"
 #include "perfm_event.hpp"
-#include "perfm_group.hpp"
+#include "perfm_evgrp.hpp"
 #include "perfm_monitor.hpp"
 
 namespace perfm {

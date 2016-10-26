@@ -33,36 +33,36 @@ void usage(const char *cmd)
 
     fprintf(stderr,
             "General Options:\n"
-            "  -h, --help                        Display this help information.\n"
-            "  -V, --version                     Display version information.\n"
+            "  -h, --help                        display this help information\n"
+            "  -V, --version                     display version information\n"
             "\n"
            );
 
     fprintf(stderr,
             "Commands:\n"
-            "  monitor                           perfm will run in counting mode.\n"
-            "  sample                            perfm will run in sampling mode.\n"
-            "  analyze                           analyze the collected data.\n"
+            "  monitor                           perfm will run in counting mode\n"
+            "  sample                            perfm will run in sampling mode\n"
+            "  analyze                           analyze the collected data\n"
             "\n");
 
     fprintf(stderr,
             "Commandline Options for: monitor\n"
-            "  -l, --loop <loops>                The # of times each event set is monitored.\n"
-            "  -t, --time <interval>             Time (s) that an event set is monitored.\n"
-            "  -e, --event <event1,event2;...>   Event list to be monitored.\n"
-            "  -i, --input <input file path>     Input file for perfm.\n"
-            "  -o, --output <output file path>   Output file.\n"
-            "  -c, --cpu <cpu>                   Which CPU to monitor; -1 for all CPUs.\n"
-            "  -p, --pid <pid>                   Which PID to monitor; -1 for all PIDs.\n"
-            "  -v, --verbose                     Run perfm in verbose mode.\n"
-            "  -m, --plm <plm string>            Privilege level mask.\n"
+            "  -l, --loop <loops>                # of times each event set is monitored\n"
+            "  -t, --time <interval>             time (s) that an event set is monitored, granularity: 0.01s\n"
+            "  -e, --event <event1,event2;...>   event list to be monitored\n"
+            "  -i, --input <input file path>     event config file for perfm, will override -e & --event\n"
+            "  -o, --output <output file path>   output file\n"
+            "  -c, --cpu <cpu>                   which CPU to monitor, -1 for any CPUs\n"
+            "  -p, --pid <pid>                   which PID to monitor, -1 for any PIDs\n"
+            "  -v, --verbose                     run perfm in verbose mode\n"
+            "  -m, --plm <plm string>            privilege level mask\n"
             "  --incl-children                   TODO\n"
             "\n");
 
     fprintf(stderr,
             "Commandline Options for: analyze\n"
-            "  -i, --input <input file path>     Input file for perfm.\n"
-            "  -o, --output <output file path>   Output file.\n"
+            "  -i, --input <input file path>     input file for perfm.\n"
+            "  -o, --output <output file path>   output file.\n"
             );
 }
 
@@ -86,7 +86,9 @@ bool options_t::parse_evcfg_file()
         } 
 
         if (event == ";") {
-            this->ev_groups.push_back(evgrp);
+            if (!evgrp.empty()) {
+                this->ev_groups.push_back(evgrp);
+            }
             evgrp.clear();
         } else {
             evgrp += evgrp.empty() ? event : "," + event;
@@ -225,13 +227,19 @@ int options_t::parse_cmd_args(int argc, char **argv)
                 return COMM_OPTIONS_ERROR;
             }
 
-            if (this->interval < 0) {
+            if (this->interval < 0.01) {
                 this->interval = 1;  /* 1 second */
             }
 
             if (this->loops <= 0) {
                 this->loops = 5;     /* 5 loops */
             }
+        }
+
+        if (this->in_file != "") {
+            if (!parse_evcfg_file()) {
+                perfm_error("Error occured when parse event config file (%s), Exit...\n", this->in_file.c_str());
+            } 
         }
     
     } else if (perfm_options.running_mode == PERFM_RUNNING_MODE_SAMPLE) {
@@ -251,28 +259,39 @@ void options_t::pr_options() const
     int rmod = this->running_mode;
 
     fprintf(fp, "-------------------------------------------------------\n");
-    fprintf(fp, "- perfm will run in mode: %7s                     -\n", perfm_comm_switch[rmod]);
+    fprintf(fp, "- perfm will run in mode: %-24s    -\n", perfm_comm_switch[rmod]);
     fprintf(fp, "-------------------------------------------------------\n");
-    fprintf(fp, "- Time (s) that an event set is monitored  : %lf(s)\n", this->interval);
-    fprintf(fp, "- # of times each event set is monitored   : %d\n",     this->loops);
-    fprintf(fp, "- Process/thread to monitor (pid/tid)      : %d\n",     this->pid);
-    fprintf(fp, "- Processor to monitor                     : %d\n",     this->cpu);
-    fprintf(fp, "- Input configure file                     : %s\n",     this->in_file.c_str());      
-    fprintf(fp, "- Output result file                       : %s\n",     this->out_file.c_str());      
-    fprintf(fp, "- Privilege level mask                     : %s\n",     this->plm.c_str());
-    fprintf(fp, "- Total event groups to monitor            : %lu\n",    this->nr_groups());
+    fprintf(fp, "- time that an event set is monitored   : %.2f(s)\n", this->interval);
+    fprintf(fp, "- # of times each event set is monitored: %d\n",      this->loops);
+    fprintf(fp, "- process/thread to monitor (pid/tid)   : %s\n",      this->pid == -1 ? "any" : std::to_string(this->pid).c_str());
+    fprintf(fp, "- processor to monitor                  : %s\n",      this->cpu == -1 ? "any" : std::to_string(this->cpu).c_str());
+    fprintf(fp, "- event config file                     : %s\n",      this->in_fp  ? this->in_file.c_str() : "none");      
+    fprintf(fp, "- output result file                    : %s\n",      this->out_fp ? this->out_file.c_str() : "stdout");      
+    fprintf(fp, "- privilege level mask                  : %s\n",      this->plm.c_str());
+    fprintf(fp, "- # of event groups to monitor          : %lu\n",     this->nr_groups());
     fprintf(fp, "-------------------------------------------------------\n");
 
     int i = 0;
     for (const auto &grp : ev_groups) {
         auto ev_list = explode(",", grp, options_t::nr_event_supp()); 
         
-        fprintf(fp, "- Event group #%d (%lu events)\n", i++, ev_list.size());
+        fprintf(fp, "- Event Group #%d (%lu events)\n", i++, ev_list.size());
         for (const auto &ev : ev_list) {
             fprintf(fp, "\t%s\n", ev.c_str());
         }
 
         fprintf(fp, "\n");
+    }
+
+    if (!this->nr_groups()) {
+        fprintf(fp,
+                "\n"
+                "-------------------------------------------------------\n"
+                "- You *must* specify at least one event to moitor...  -\n"
+                "-------------------------------------------------------\n"
+                "\n"
+                );
+        exit(EXIT_FAILURE);
     }
 }
 

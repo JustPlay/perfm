@@ -1,3 +1,7 @@
+/**
+ * perfm_option.hpp - configure options for perfm
+ *
+ */
 #ifndef __PERFM_OPTION_HPP__
 #define __PERFM_OPTION_HPP__
 

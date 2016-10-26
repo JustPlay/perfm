@@ -94,6 +94,19 @@ int event_t::ev_open()
     return this->fd;
 }
 
+int event_t::ev_close() {
+    if (this->fd == -1) {
+        return 0;
+    }
+
+    int ret = ::close(this->fd);
+    if (ret != -1) {
+        this->fd = -1;
+    }
+
+    return ret;
+}
+
 bool event_t::ev_read()
 {
     bool is_read_succ = true;
@@ -103,7 +116,7 @@ bool event_t::ev_read()
     this->pmu_prev[2] = this->pmu_curr[2];
 
     ssize_t ret = ::read(this->fd, this->pmu_curr, sizeof(this->pmu_curr)); 
-    if (ret != sizeof(this->pmu_curr) && ret != sizeof(this->pmu_curr[0])) {
+    if (ret != sizeof(this->pmu_curr)) {
         char buferr[PERFM_BUFERR] = { '\0' };
         strerror_r(errno, buferr, sizeof(buferr));
         perfm_warning("Read PMU counters failed, %s\n", buferr);
@@ -114,6 +127,34 @@ bool event_t::ev_read()
     return is_read_succ;
 }
 
+uint64_t event_t::ev_delta() const
+{
+    if (pmu_curr[2] > pmu_curr[1]) {
+        perfm_warning("Running time (%zu) > Enabled time (%zu).\n", pmu_curr[2], pmu_curr[1]);
+    }
+
+    if (pmu_curr[2] == 0 && pmu_curr[0] != 0) {
+        perfm_warning("Running time *zero*, scaling failed. %zu, %zu, %zu.\n", pmu_curr[0], pmu_curr[1], pmu_curr[2]);
+    }
+
+    if (pmu_curr[2] <= pmu_prev[2]) {
+        perfm_warning("Running time curr (%zu) <= prev (%zu).\n", pmu_curr[2], pmu_prev[2]);
+        return 0;
+    }
+
+    double prev[3], curr[3];
+    
+    prev[0] = pmu_prev[0];
+    prev[1] = pmu_prev[1];
+    prev[2] = pmu_prev[2];
+
+    curr[0] = pmu_curr[0];
+    curr[1] = pmu_curr[1];
+    curr[2] = pmu_curr[2];
+
+    return static_cast<uint64_t>((curr[0] - prev[0]) * (curr[1] - prev[1]) / (curr[2] - prev[2]));
+
+}
 
 uint64_t event_t::ev_scale() const
 {
@@ -123,8 +164,8 @@ uint64_t event_t::ev_scale() const
         perfm_warning("Running time (%zu) > Enabled time (%zu).\n", pmu_curr[2], pmu_curr[1]);
     }
 
-    if (pmu_curr[2] == 0 || pmu_curr[0] != 0) {
-        perfm_warning("Running time *zero*, Scaling failed. %zu, %zu, %zu", pmu_curr[0], pmu_curr[1], pmu_curr[2]);
+    if (pmu_curr[2] == 0 && pmu_curr[0] != 0) {
+        perfm_warning("Running time *zero*, scaling failed. %zu, %zu, %zu.\n", pmu_curr[0], pmu_curr[1], pmu_curr[2]);
     }
 
     if (pmu_curr[2] != 0) {
@@ -143,19 +184,15 @@ void event_t::ev_print() const
 
     fprintf(fp, "-----------------------------------------------------\n"); 
     fprintf(fp, "- Event - %s\n", this->ev_nam().c_str());
-    fprintf(fp, "-----------------------------------------------------\n"); 
 
-    fprintf(fp, "- perf event type   : %s\n",  perf_event_type_desc[this->pea.type]);
-    fprintf(fp, "- perf event config : %lx\n", this->pea.config);
+    fprintf(fp, "  perf event type   : %s\n",  perf_event_type_desc[this->pea.type]);
+    fprintf(fp, "  perf event config : %lx\n", this->pea.config);
 
-    fprintf(fp, "- perf event fd     : %d\n",  this->ev_fd());
-    fprintf(fp, "- perf event group  : %d\n",  this->ev_grp());
-    fprintf(fp, "- monitored cpu     : %d\n",  this->ev_cpu());
-    fprintf(fp, "- monitored process : %d\n",  this->ev_pid());
+    fprintf(fp, "  monitored cpu     : %d\n",  this->ev_cpu());
+    fprintf(fp, "  monitored process : %d\n",  this->ev_pid());
 
-    fprintf(fp, "- curr pmu vals     : %zu  %zu  %zu\n", pmu_curr[0], pmu_curr[1], pmu_curr[2]);
-    fprintf(fp, "- prev pmu vals     : %zu  %zu  %zu\n", pmu_prev[0], pmu_prev[1], pmu_prev[2]);
+    fprintf(fp, "  curr pmu vals     : %zu  %zu  %zu\n", pmu_curr[0], pmu_curr[1], pmu_curr[2]);
+    fprintf(fp, "  prev pmu vals     : %zu  %zu  %zu\n", pmu_prev[0], pmu_prev[1], pmu_prev[2]);
 }
 
 } /* namespace perfm */
-

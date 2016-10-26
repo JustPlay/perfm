@@ -1,3 +1,7 @@
+/**
+ * permf_monitor.hpp - interface for perfm monitor
+ *
+ */
 #ifndef __PERFM_MONITOR_HPP__
 #define __PERFM_MONITOR_HPP__
 
@@ -11,7 +15,7 @@
 
 #include "perfm_util.hpp"
 #include "perfm_event.hpp"
-#include "perfm_group.hpp"
+#include "perfm_evgrp.hpp"
 #include "perfm_option.hpp"
 
 namespace perfm {

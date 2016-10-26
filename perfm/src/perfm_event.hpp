@@ -1,3 +1,7 @@
+/**
+ * perfm_event.hpp - interface for a single event (perf_event)
+ *
+ */
 #ifndef __PERFM_EVENT_HPP__
 #define __PERFM_EVENT_HPP__
 
@@ -21,8 +25,8 @@ class event_t {
     friend class group_t;
 
 public:
-    using ptr_t     = std::shared_ptr<event_t>;
-    using pmu_val_t = std::tuple<uint64_t, uint64_t, uint64_t>; /* 0: RAW PMU COUNT, 1: TIME_ENABLED, 2: TIME_RUNNING */
+    using ptr_t      = std::shared_ptr<event_t>;
+    using pmu_cntr_t = std::tuple<uint64_t, uint64_t, uint64_t>; // 0: RAW PMU COUNT, 1: TIME_ENABLED, 2: TIME_RUNNING
 
 public:
     static ptr_t creat() {
@@ -33,11 +37,11 @@ public:
         
     }
 
-    pmu_val_t get_pmu_val() const {
+    pmu_cntr_t get_pmu_cntr() const {
         return std::make_tuple(pmu_curr[0], pmu_curr[1], pmu_curr[2]);
     }
 
-    void set_pmu_val(uint64_t pmu_cntr_val, uint64_t time_enabled, uint64_t time_running) {
+    void set_pmu_cntr(uint64_t pmu_cntr_val, uint64_t time_enabled, uint64_t time_running) {
         pmu_prev[0] = pmu_curr[0];
         pmu_prev[1] = pmu_curr[1];
         pmu_prev[2] = pmu_curr[2];
@@ -47,8 +51,8 @@ public:
         pmu_curr[2] = time_running;
     }
 
-    void set_pmu_val(const pmu_val_t &pmu_cntr_val) {
-        set_pmu_val(std::get<0>(pmu_cntr_val), std::get<1>(pmu_cntr_val), std::get<2>(pmu_cntr_val));
+    void set_pmu_cntr(const pmu_cntr_t &pmu_cntr) {
+        set_pmu_cntr(std::get<0>(pmu_cntr), std::get<1>(pmu_cntr), std::get<2>(pmu_cntr));
     }
 
 private:
@@ -58,13 +62,14 @@ private:
 
 public:
     /** 
-     * ev_open - Encode & Open the event for monitoring
+     * ev_open - encode & open the event for monitoring
      *
-     * @evn  Event name string  
-     * @pid  Process/thread to minitor, -1 for any process/thread
-     * @cpu  Processor to monitor; -1 for any processor
-     * @plm  Privilege level mask; used by libpfm4
-     * @flg  The flags argument for perf_event_open()
+     * @evn  event name string  
+     * @pid  process/thread to minitor, -1 for any process/thread
+     * @grp  group leader for this event
+     * @cpu  processor to monitor, -1 for any processor
+     * @plm  privilege level mask, used by libpfm4
+     * @flg  the flags argument for perf_event_open()
      *
      * Return:
      *     the new file descriptor, or -1 if an error occurred 
@@ -74,7 +79,7 @@ public:
     int ev_open(const std::string &evn, pid_t pid, int grp = -1, int cpu = -1, unsigned long plm = PFM_PLM3 | PFM_PLM0, unsigned long flg = 0);
 
     /** 
-     * ev_open - Call perf_event_open() to set up performance monitoring
+     * ev_open - call perf_event_open() to set up performance monitoring
      *
      * Return:
      *     the new file descriptor, or -1 if an error occurred 
@@ -87,18 +92,13 @@ public:
      *            group_t::gr_open(...)
      */
     int ev_open();
-    
-    int ev_close() {
-        int ret  = ::close(this->fd);
-        this->fd = -1;
-
-        return ret;
-    }
+    int ev_close();
 
     bool ev_read();
     bool ev_copy();
 
     uint64_t ev_scale() const;
+    uint64_t ev_delta() const;
 
     void ev_print() const;
 
@@ -139,31 +139,27 @@ public:
     }
 
 private:
-    uint64_t pmu_curr[3]; /* 0: RAW PMU COUNT, 1: TIME_ENABLED, 2: TIME_RUNNING */
-    uint64_t pmu_prev[3]; /* 0: RAW PMU COUNT, 1: TIME_ENABLED, 2: TIME_RUNNING */ 
+    uint64_t pmu_curr[3]; // 0: RAW PMU COUNT, 1: TIME_ENABLED, 2: TIME_RUNNING
+    uint64_t pmu_prev[3]; // 0: RAW PMU COUNT, 1: TIME_ENABLED, 2: TIME_RUNNING 
 
     struct perf_event_attr pea;
 
-    int fd  = -1; /* file descriptor corresponds to the event that is
-                   * measured; the ret val of perf_event_open()
-                   */
+    int fd  = -1; // file descriptor corresponds to the event that is measured,
+                  // the ret val of perf_event_open(2)
 
-    int grp = -1; /* the event group leader's fd; -1 for group leader
-                   * arg for perf_event_open()
-                   */
+    int grp = -1; // the event group leader's fd, -1 for group leader,
+                  // arg for perf_event_open(2)
 
-    int cpu = -1; /* which CPU to monitor; -1 for any CPU
-                   * arg for perf_event_open()
-                   */
+    int cpu = -1; // which CPU to monitor, -1 for any CPU,
+                  // arg for perf_event_open(2)
 
-    pid_t pid;    /* which process to monitor; -1 for any process
-                   * arg for perf_event_open()
-                   */
+    pid_t pid;    // which process to monitor, -1 for any process,
+                  // arg for perf_event_open(2)
 
-    unsigned long flg; /* arg for perf_event_open() */
-    unsigned long plm;
+    unsigned long flg; // arg for perf_event_open(2)
 
-    std::string nam; /* event string name */
+    std::string nam;   // event string name, used by libpfm4
+    unsigned long plm; // privilege level mask, used by libpfm4
 };
 
 } /* namespace perfm */
