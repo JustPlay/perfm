@@ -169,16 +169,3 @@ pr_msg "------------------------------------------------------------"
 #  0  1  2  3  4  8  9 10 11 12  0  1  2  3  4  8  9 10 11 12  0  1  2  3  4  8  9 10 11 12  0  1  2  3  4  8  9 10 11 12
 #  0  0  0  0  0  0  0  0  0  0  1  1  1  1  1  1  1  1  1  1  0  0  0  0  0  0  0  0  0  0  1  1  1  1  1  1  1  1  1  1
 #
-##
-#
-# echo "turn off the cores,input the start and end"
-# echo 0 > /sys/devices/system/cpu/cpu$1/online
-# echo $1
-# $tmp1=expr $1 + 10 
-# $tmp2=expr $1 + 20 
-# $tmp3=expr $1 + 30 
-# echo 0 > /sys/devices/system/cpu/cpu$tmp1/online
-# echo 0 > /sys/devices/system/cpu/cpu$tmp2/online
-# echo 0 > /sys/devices/system/cpu/cpu$tmp3/online
-#
-##
