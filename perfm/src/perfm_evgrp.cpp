@@ -53,14 +53,19 @@ int evgrp_t::gr_open(const std::vector<std::string> &ev_argv, pid_t pid, int cpu
         }
 
         if (!plm_val) {
-            perfm_warning("%s\n", "The privilege level mask argument should NOT be zero");
+            perfm_warning("%s\n", "privilege level mask should *not* zero");
         }
 
         this->plm = plm_val;
 
         pfm_err_t ret = pfm_get_os_event_encoding(ev_argv[i].c_str(), this->plm, PFM_OS_PERF_EVENT, &arg);
         if (ret != PFM_SUCCESS) {
-            perfm_error("Event encoding error: %s, %s\n", ev_argv[i].c_str(), pfm_strerror(ret));
+            if (perfm_options.ignore_error) {
+                perfm_warning("invalid event (ignored): %s\n", ev_argv[i].c_str());
+                continue;
+            } else {
+                perfm_error("error on event encoding: %s %s\n", ev_argv[i].c_str(), pfm_strerror(ret));
+            }
         }
 
         ev->nam = ev_argv[i];
@@ -103,15 +108,15 @@ size_t evgrp_t::gr_read()
 
         uint64_t *val = new uint64_t[siz_buffer];
         if (!val) {
-            perfm_error("Can't allocate memory: %zu bytes\n", siz_buffer);
+            perfm_error("can't allocate memory: %zu bytes\n", siz_buffer);
         }
 
         ssize_t ret = ::read(this->gr_leader()->ev_fd(), val, siz_buffer);
         if (ret == -1) {
-            perfm_error("%s\n", "Error occured when read events counters");
+            perfm_error("%s\n", "error occured when read events counters");
         } 
         if (ret < siz_buffer) {
-            perfm_warning("Read events counters, need read %zu bytes, actually read %zd bytes\n", siz_buffer, ret);
+            perfm_warning("read events counters, need read %zu bytes, actually read %zd bytes\n", siz_buffer, ret);
         }
 
         for (size_t i = 0; i < num_events; ++i) {
@@ -148,13 +153,7 @@ void evgrp_t::gr_print() const
     fprintf(fp, "-------------------------------------------------------\n"); 
 
     for (decltype(ev_list.size()) i = 0; i < ev_list.size(); ++i) {
-        event_t::ptr_t evp = ev_list[i];
-
-        fprintf(fp, "- Event - %s\n", evp->ev_nam().c_str());
-
-        fprintf(fp, "  curr pmu vals : %zu  %zu  %zu\n", evp->pmu_curr[0], evp->pmu_curr[1], evp->pmu_curr[2]);
-        fprintf(fp, "  prev pmu vals : %zu  %zu  %zu\n", evp->pmu_prev[0], evp->pmu_prev[1], evp->pmu_prev[2]);
-
+        ev_list[i]->ev_print();
         fprintf(fp, "\n");
     }
 }

@@ -1,27 +1,74 @@
-#!/bin/sh
+#!/bin/bash
+#
+# Copyright (c) 2016 Baidu.com, Inc. All Rights Reserved
+#
+# Author:
+#     houyu02
+#
+# Date:
+#     2016/08/24
+#
+# Brief:
+#     Xyz abcd.
+#
+# Globals:
+#     CPU_CFG_DIR
+#
+# Arguments:
+#
+#     1, 2, 3, 4
+#
+# Returns:
+#     succ: 0
+#     fail: 1
+
+
+# set -u          # 使用的变量必须提前定义过
+# set -o nounset  # 使用的变量必须提前定义过
+
+# set -e          # 所有非0的返回状态都需要捕获
+# set -o errexit  # 所有非0的返回状态都需要捕获
+
+# set -o pipefail # 管道间错误需要捕获
+
+# set -x          #
+# set -o xtrace   #
+
+set -u
+set -e
+
 
 function pr_msg()
 {
-    MSG="$*"
-    echo "$MSG"
+    local msg="$*"
+    echo "$msg"
 }
 
 function pr_nnl()
 {
-    MSG="$*"
+    local msg="$*"
     echo -n "$*"
+}
+
+function pr_err_with_time()
+{
+    local msg="$*"
+    if [ -w /dev/stderr ]; then
+        echo "[$(date +'%Y-%m-%d-%H:%M:%S')]: $msg" >> /dev/stderr
+    else
+        echo "[$(date +'%Y-%m-%d-%H:%M:%S')]: $msg"
+    fi
 }
 
 function pr_err()
 {
-    MSG="$*"
+    local msg="$*"
     if [ -w /dev/stderr ]; then
-        echo "$MSG" >> /dev/stderr
+        echo "$msg" >> /dev/stderr
     else
-        echo "$MSG"
+        echo "$msg"
     fi
 }
-
 
 function pr_warning()
 {
@@ -37,15 +84,15 @@ function pr_usage()
     pr_msg ""
 
     pr_err "Usage:"
-    pr_err "    $(basename $0) <Cores to disable> <Threads per core> [Sockets (defaults to 2)]"
+    pr_err "    $(basename $0) <cores to disable> <threads per core> [sockets (defaults to 2)]"
 }
 
 
+## Script entry
 CPU_CFG_DIR="/sys/devices/system/cpu"
 NR_THR_CORE=  # Threads per core
 NR_SYS_SKTS=  # Sockets installed on this system
 
-## Script entry
 case $# in
 3)
     NR_THR_CORE=$2 # Threads per core
@@ -75,10 +122,10 @@ NR_SYS_THRD=$(ls $CPU_CFG_DIR | grep -E 'cpu[[:digit:]]' | wc -l)
 NR_SYS_CORE=$(($NR_SYS_THRD / $NR_THR_CORE))
 
 # Cores to disable on each socket
-CORES_TO_DISABLE=$(expr $1 / $NR_SYS_SKTS)
+CORES_TO_DISABLE=$(($1 / $NR_SYS_SKTS))
 
 # Cores per socket
-CORES_PER_SOCKET=$(expr $NR_SYS_CORE / $NR_SYS_SKTS)
+CORES_PER_SOCKET=$(($NR_SYS_CORE / $NR_SYS_SKTS))
 
 #
 # CORES_PER_SOCKET may *NOT* be computed by using the info from /proc/cpuinfo
@@ -122,7 +169,10 @@ fi
 
 
 ## Second, disable the same *cores* on each socket
-pr_msg "------------------------------------------------------------"
+if [ $CORES_TO_DISABLE -gt 0 ]; then
+    pr_msg "------------------------------------------------------------"
+fi
+
 for ((c = 1; c <= $CORES_TO_DISABLE; c++)); 
 do
     for ((s = 1; s <= $NR_SYS_SKTS; s++));

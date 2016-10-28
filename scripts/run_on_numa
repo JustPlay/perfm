@@ -1,0 +1,147 @@
+#!/bin/bash
+
+set -u
+
+
+function pr_msg()
+{
+    msg="$*"
+    echo "$msg"
+}
+
+function pr_nnl()
+{
+    msg="$*"
+    echo -n "$*"
+}
+
+function pr_err()
+{
+    msg="$*"
+    if [ -w /dev/stderr ]; then
+        echo "$msg" >> /dev/stderr
+    else
+        echo "$msg"
+    fi
+}
+
+function usage()
+{
+    pr_msg "Usage: $(basename $0) <cpu-node> <mem-node> <command>"
+}
+
+
+if [ $EUID -ne 0 ]; then
+    pr_msg "----------------------------------------------------------------------"
+    pr_msg "- Warning:                                                           -"
+    pr_msg "-      this script do 'Socket' && 'Memory' binding by using 'cgroup' -"
+    pr_msg "-      so, you will need root privilege to run it. BE CAREFULL       -"
+    pr_msg "-                                                                    -"
+    pr_msg "- NODE:                                                              -"
+    pr_msg "-      if possible, use 'numactl' or 'taskset' is preffered          -"
+    pr_msg "----------------------------------------------------------------------"
+
+    exit 0
+fi
+
+
+if [ $# -lt 3 ]; then
+    usage
+    exit 1
+fi
+
+
+CPU=$1
+MEM=$2
+CMD=$(echo "$*" | gawk '{ for (i = 3; i <= NF; ++i) printf $i" " }')
+
+
+PATH_CGROUP_SYS="/sys/fs/cgroup" # the default mountpoint for cgroup filesystem
+PATH_CGROUP_USR="/tmp/cgroup1111"        # where cgroup will be mounted, if it can *not* be mount on the default mountpoint
+PATH_CGROUP_MNT=""               # the real mountpoint for cgroup
+
+SYS_CFGDIR_NODE="/sys/devices/system/node/" # node configure directory
+SYS_CFGFLE_NODE=""                          # node configure file
+
+NODE_LIST=$(ls $SYS_CFGDIR_NODE | grep 'node')                          # node list on this system
+NODE_ONLN=$(echo $NODE_LIST | grep 'node' | gawk -F' ' '{ print NF }'); # node numbers on this system
+
+if [ $CPU -ge $NODE_ONLN ] || [ $MEM -ge $NODE_ONLN ]; then
+    pr_msg "Invalid argument: node number too big"
+    exit 1
+fi
+
+
+CPULIST_NODE=$(cat $SYS_CFGDIR_NODE/node$CPU/cpulist)
+MEMLIST_NODE=$MEM
+
+IF_CGROUP_SUPPORT=$(cat /proc/filesystems | grep 'cgroup')
+IF_CGROUP_MOUNTED=$(mount | grep 'cgroup')
+
+if [ -z "$IF_CGROUP_SUPPORT" ]; then
+    pr_msg "cgroup not supported on this system, exit..."
+    exit 1
+fi
+
+if [ -z "$IF_CGROUP_MOUNTED" ]; then
+
+    [[ -d $PATH_CGROUP_SYS ]] || mkdir -p $PATH_CGROUP_SYS
+    if [ -d $PATH_CGROUP_SYS ]; then
+        PATH_CGROUP_MNT=$PATH_CGROUP_SYS
+    fi
+
+    if [ -z "$PATH_CGROUP_MNT" ]; then
+        [[ -d $PATH_CGROUP_USR ]] || mkdir -p $PATH_CGROUP_USR
+        if [ -d $PATH_CGROUP_USR ]; then
+            PATH_CGROUP_MNT=$PATH_CGROUP_USR
+        fi
+    fi
+
+    if [ -z "$PATH_CGROUP_MNT" ] || [ ! -d $PATH_CGROUP_MNT ]; then
+        pr_msg "Error occured when creating cgroup mount dir, exit..."
+        exit 1
+    fi
+
+    mount -t cgroup none $PATH_CGROUP_MNT
+    if [ $? -ne 0 ]; then
+        pr_msg "Error occured when mounting cgroup filesystem, exit..."
+        exit 1
+    fi
+else
+    PATH_CGROUP_MNT=$(mount | grep 'cgroup' | gawk -F' ' '{ print $3 }');
+fi
+
+
+CGROUP_NAME=$(basename $0).$$
+
+mkdir -p $PATH_CGROUP_MNT/$CGROUP_NAME
+if [ $? -ne 0 ]; then
+    pr_msg "Error occured when creating sub-cgroup for..."
+    exit 1
+fi
+
+echo $CPULIST_NODE > $PATH_CGROUP_MNT/$CGROUP_NAME/cpuset.cpus
+if [ $? -ne 0 ]; then
+    pr_msg "Error occured when setting cpu-node binding"
+    exit 1
+fi
+
+echo $MEMLIST_NODE > $PATH_CGROUP_MNT/$CGROUP_NAME/cpuset.mems
+if [ $? -ne 0 ]; then
+    pr_msg "Error occured when setting mem-node binding"
+    exit 1
+fi
+
+echo $$ > $PATH_CGROUP_MNT/$CGROUP_NAME/tasks
+if [ $? -ne 0 ]; then
+    pr_msg "Error occured when add task to cgroup.tasks"
+    exit 1
+fi
+
+pr_msg "--------------------------------------------------------------------"
+pr_msg "- process pid     : $$"
+pr_msg "- cgroup path     : $PATH_CGROUP_MNT/$CGROUP_NAME"
+pr_msg "- command to exec : $CMD"
+pr_msg "--------------------------------------------------------------------"
+
+exec $CMD

@@ -56,7 +56,7 @@ int event_t::ev_open(const std::string &evn, pid_t pid, int grp, int cpu, unsign
 
     pfm_err_t ret = pfm_get_os_event_encoding(this->nam.c_str(), this->plm, PFM_OS_PERF_EVENT, &arg);
     if (ret != PFM_SUCCESS) {
-        perfm_warning("Event encoding error: %s, %s\n", this->nam.c_str(), pfm_strerror(ret));
+        perfm_warning("event encoding error: %s, %s\n", this->nam.c_str(), pfm_strerror(ret));
         return -1;
     }
 
@@ -88,13 +88,14 @@ int event_t::ev_open()
     this->fd = perf_event_open(&this->pea, this->pid, this->cpu, this->grp, this->flg); 
 
     if (this->fd == -1) {
-        perfm_warning("Call to perf_event_open() failed for event: %s, process: %d, cpu: %d\n", this->nam.c_str(), this->pid, this->cpu);
+        perfm_warning("perf_event_open() failed on event: %s, process: %d, cpu: %d\n", this->nam.c_str(), this->pid, this->cpu);
     }
 
     return this->fd;
 }
 
-int event_t::ev_close() {
+int event_t::ev_close()
+{
     if (this->fd == -1) {
         return 0;
     }
@@ -119,7 +120,7 @@ bool event_t::ev_read()
     if (ret != sizeof(this->pmu_curr)) {
         char buferr[PERFM_BUFERR] = { '\0' };
         strerror_r(errno, buferr, sizeof(buferr));
-        perfm_warning("Read PMU counters failed, %s\n", buferr);
+        perfm_warning("read PMU counters failed, %s\n", buferr);
 
         is_read_succ = false;
     }
@@ -130,15 +131,15 @@ bool event_t::ev_read()
 uint64_t event_t::ev_delta() const
 {
     if (pmu_curr[2] > pmu_curr[1]) {
-        perfm_warning("Running time (%zu) > Enabled time (%zu).\n", pmu_curr[2], pmu_curr[1]);
+        perfm_warning("running time (%zu) > enabled time (%zu).\n", pmu_curr[2], pmu_curr[1]);
     }
 
     if (pmu_curr[2] == 0 && pmu_curr[0] != 0) {
-        perfm_warning("Running time *zero*, scaling failed. %zu, %zu, %zu.\n", pmu_curr[0], pmu_curr[1], pmu_curr[2]);
+        perfm_warning("running time *zero*, scaling failed. %zu, %zu, %zu.\n", pmu_curr[0], pmu_curr[1], pmu_curr[2]);
     }
 
     if (pmu_curr[2] <= pmu_prev[2]) {
-        perfm_warning("Running time curr (%zu) <= prev (%zu).\n", pmu_curr[2], pmu_prev[2]);
+        perfm_warning("running time curr (%zu) <= prev (%zu).\n", pmu_curr[2], pmu_prev[2]);
         return 0;
     }
 
@@ -161,11 +162,11 @@ uint64_t event_t::ev_scale() const
     uint64_t res = 0;
 
     if (pmu_curr[2] > pmu_curr[1]) {
-        perfm_warning("Running time (%zu) > Enabled time (%zu).\n", pmu_curr[2], pmu_curr[1]);
+        perfm_warning("running time (%zu) > enabled time (%zu).\n", pmu_curr[2], pmu_curr[1]);
     }
 
     if (pmu_curr[2] == 0 && pmu_curr[0] != 0) {
-        perfm_warning("Running time *zero*, scaling failed. %zu, %zu, %zu.\n", pmu_curr[0], pmu_curr[1], pmu_curr[2]);
+        perfm_warning("running time *zero*, scaling failed. %zu, %zu, %zu.\n", pmu_curr[0], pmu_curr[1], pmu_curr[2]);
     }
 
     if (pmu_curr[2] != 0) {
@@ -182,17 +183,43 @@ void event_t::ev_print() const
         fp = stdout;
     }
 
-    fprintf(fp, "-----------------------------------------------------\n"); 
     fprintf(fp, "- Event - %s\n", this->ev_nam().c_str());
+    fprintf(fp, "  pmu curr: %zu  %zu  %zu\n", pmu_curr[0], pmu_curr[1], pmu_curr[2]);
+    fprintf(fp, "  pmu prev: %zu  %zu  %zu\n", pmu_prev[0], pmu_prev[1], pmu_prev[2]);
+}
 
-    fprintf(fp, "  perf event type   : %s\n",  perf_event_type_desc[this->pea.type]);
-    fprintf(fp, "  perf event config : %lx\n", this->pea.config);
+void event_t::ev_prcfg() const
+{
+    /* TODO */    
+}
 
-    fprintf(fp, "  monitored cpu     : %d\n",  this->ev_cpu());
-    fprintf(fp, "  monitored process : %d\n",  this->ev_pid());
+void ev2perf(const std::string &evn)
+{
+    FILE *fp = stdout;
 
-    fprintf(fp, "  curr pmu vals     : %zu  %zu  %zu\n", pmu_curr[0], pmu_curr[1], pmu_curr[2]);
-    fprintf(fp, "  prev pmu vals     : %zu  %zu  %zu\n", pmu_prev[0], pmu_prev[1], pmu_prev[2]);
+    struct perf_event_attr hw; 
+    memset(&hw, 0, sizeof(hw));
+
+    pfm_perf_encode_arg_t arg;
+    memset(&arg, 0, sizeof(arg));
+
+    arg.attr = &hw;
+    arg.size = sizeof(arg);
+
+    pfm_err_t ret = pfm_get_os_event_encoding(evn.c_str(), PFM_PLM3 | PFM_PLM0, PFM_OS_PERF_EVENT, &arg);
+    if (ret != PFM_SUCCESS) {
+        perfm_warning("event encoding error: %s, %s\n", evn.c_str(), pfm_strerror(ret));
+        return;
+    }
+
+    fprintf(fp, "- Event - %s\n", evn.c_str());
+    fprintf(fp, "  perf.type      : %s\n"
+                "  perf.config    : %lu\n"
+                "  perf.disabled  : %s\n"
+                "      .inherit   : %s\n"
+                "      .pinned    : %s\n" 
+                "      .exclusive : %s\n"
+
 }
 
 } /* namespace perfm */

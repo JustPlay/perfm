@@ -193,7 +193,7 @@ int options_t::parse_cmd_args(int argc, char **argv)
                 if (!this->in_fp) {
                     char buferr[PERFM_BUFERR] = { '\0' };
                     strerror_r(errno, buferr, sizeof(buferr));
-                    perfm_error("Error occured when opening the input file: %s, %s\n", optarg, buferr);
+                    perfm_error("error occured on ::fopen(): %s, %s\n", optarg, buferr);
                 }
                 break;
 
@@ -203,7 +203,7 @@ int options_t::parse_cmd_args(int argc, char **argv)
                 if (!this->out_fp) {
                     char buferr[PERFM_BUFERR] = { '\0' };
                     strerror_r(errno, buferr, sizeof(buferr));
-                    perfm_error("Error occured when opening the output file: %s, %s\n", optarg, buferr);
+                    perfm_error("error occured on ::fopen(): %s, %s\n", optarg, buferr);
                 }
                 break;
 
@@ -238,7 +238,7 @@ int options_t::parse_cmd_args(int argc, char **argv)
 
         if (this->in_file != "") {
             if (!parse_evcfg_file()) {
-                perfm_error("Error occured when parse event config file (%s), Exit...\n", this->in_file.c_str());
+                perfm_error("error occured on event parsing (%s), exit...\n", this->in_file.c_str());
             } 
         }
     
@@ -247,7 +247,7 @@ int options_t::parse_cmd_args(int argc, char **argv)
     } else if (perfm_options.running_mode == PERFM_RUNNING_MODE_ANALYZE) {
         perfm_error("%s\n", "TODO");    
     } else {
-        perfm_error("%s\n", "This should NOT happen!");    
+        perfm_error("%s\n", "this should never happen!");    
     }
 
     return COMM_OPTIONS_VALID;

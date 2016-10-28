@@ -101,6 +101,7 @@ public:
     uint64_t ev_delta() const;
 
     void ev_print() const;
+    void ev_prcfg() const;
 
     std::string ev_nam() const {
         return std::move(std::string(this->nam));
@@ -161,6 +162,8 @@ private:
     std::string nam;   // event string name, used by libpfm4
     unsigned long plm; // privilege level mask, used by libpfm4
 };
+
+void ev2perf(const std::string &evn);
 
 } /* namespace perfm */
 

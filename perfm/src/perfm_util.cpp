@@ -89,13 +89,13 @@ void nanoseconds_sleep(double seconds, bool use_abs_clock)
                 req ^= rem; rem ^= req; req ^= rem;
                 continue;
             } else {
-                perfm_warning("Call to nanosleep() failed, remaining %ld(ns)\n", tv[rem].tv_sec * 1000000000 + tv[rem].tv_nsec);
+                perfm_warning("nanosleep() failed, remaining %ld(ns)\n", tv[rem].tv_sec * 1000000000 + tv[rem].tv_nsec);
                 break;
             }
         }
 
     } else {  /* absolute time sleep */
-        perfm_error("%s\n", "NOT implemented");
+        perfm_error("%s\n", "not impled for now");
     }
 }
 

@@ -97,6 +97,7 @@ public:
     perfm_running_mode_t running_mode = PERFM_RUNNING_MODE_MONITOR;
 
     bool list_pmu_avail = false; /* list the available PMUs */
+    bool ignore_error   = true;  /* ignore non-fatal error */
 
 private:
     std::vector<std::string> ev_groups; /* event group list 
