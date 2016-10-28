@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <string>
+#include <fstream>
 
 namespace numa {
 
@@ -46,6 +47,34 @@ std::vector<std::string> str_split(const std::string &str, const std::string &de
     }
     
     return std::move(result);
+}
+
+bool is_subsys_avail(const std::string &subsys)
+{
+    std::fstream fin("/proc/mounts", std::ios_base::in); 
+    std::string line;
+
+    while (std::getline(fin, line)) {
+        if (line.find_first_of(subsys) != std::string::npos) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool is_cgroup_avail()
+{
+    std::fstream fin("/proc/filesystems", std::ios_base::in);
+    std::string line;
+
+    while (std::getline(fin, line)) {
+        if (line.find_first_of("cgroup") != std::string::npos) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 } /* namespace numa */
