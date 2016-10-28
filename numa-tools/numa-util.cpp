@@ -4,6 +4,11 @@
 #include <vector>
 #include <string>
 #include <fstream>
+#include <cstring>
+
+#include <sys/types.h>
+#include <dirent.h>
+#include <unistd.h>
 
 namespace numa {
 
@@ -75,6 +80,44 @@ bool is_cgroup_avail()
     }
 
     return false;
+}
+
+size_t nr_node()
+{
+    if (access("/sys/devices/system/node/", F_OK) != 0) {
+        fatal("access() failed: %s", "/sys/devices/system/node/");        
+    }
+
+    DIR *dirp = ::opendir("/sys/devices/system/node/");        
+    if (!dirp) {
+        warn("opendir() failed: %s", "/sys/devices/system/node/");        
+        return 0;
+    }
+
+    struct dirent *dp = NULL;
+    size_t nr         = 0;
+
+    errno = 0;
+
+    while ((dp = ::readdir(dirp)) != NULL) {
+        if (std::strcmp(".",  dp->d_name) == 0) {
+            continue;
+        }
+
+        if (std::strcmp("..", dp->d_name) == 0) {
+            continue;
+        }
+
+        if (std::strncmp("node", dp->d_name, sizeof("node")) == 0) {
+            ++nr;
+        }
+    }
+
+    if (errno) {
+        warn("readdir() failed: %s", "/sys/devices/system/node/");        
+    }
+
+    return nr;
 }
 
 } /* namespace numa */
