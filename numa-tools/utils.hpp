@@ -1,9 +1,9 @@
 /**
- * numa-util.hpp - helper functions for numa-tools
+ * utils.hpp - helper functions for common purpose
  *
  */
-#ifndef __NUMA_UTIL_HPP_
-#define __NUMA_UTIL_HPP_
+#ifndef __UTILS_HPP_
+#define __UTILS_HPP_
 
 #include <vector>
 #include <string>
@@ -26,20 +26,10 @@
     fprintf(stdout, fmt, ##__VA_ARGS__);                                   \
 } while (0)
 
-
-namespace numa {
+namespace util {
 
 std::vector<std::string> str_split(const std::string &str, const std::string &del, size_t limit = 0);
 
-bool is_cgroup_avail();
-bool is_subsys_avail(const std::string &subsys);
+} /* namespace util */
 
-inline bool is_cpuset_avail() {
-    return is_subsys_avail("cpuset");
-}
-
-size_t nr_node();
-
-} /* namespace numa */
-
-#endif /* __NUMA_UTIL_HPP_ */
+#endif /* __UTILS_HPP_ */
