@@ -17,16 +17,16 @@ namespace numa {
 std::string node::cpulist() const 
 {
     std::string cpulst;
-
     std::string cpucfg = numacfg + "node" + std::to_string(nid()) + "/cpulist";
+
     if (access(cpucfg.c_str(), R_OK) != 0) {
         warn("access() %s\n", cpucfg.c_str());
         return std::move(cpulst);
     }     
 
-    std::fstream fin(cpucfg, std::ios_base::in);
+    std::fstream fp(cpucfg, std::ios_base::in);
 
-    if (std::getline(fin, cpulst)) {
+    if (std::getline(fp, cpulst)) {
         return std::move(cpulst);
     }
     
@@ -44,7 +44,9 @@ size_t nodelist::init()
 
     DIR *dirp = ::opendir(numacfg.c_str());        
     if (!dirp) {
-        warn("opendir() %s", numacfg.c_str());        
+        char buferr[BUFERR] = { '\0' };
+        strerror_r(errno, buferr, sizeof(buferr));
+        warn("opendir() %s %s", numacfg.c_str(), buferr);        
         return 0;
     }
 
@@ -72,7 +74,9 @@ size_t nodelist::init()
     }
 
     if (errno) {
-        warn("readdir() %s", numacfg.c_str());        
+        char buferr[BUFERR] = { '\0' };
+        strerror_r(errno, buferr, sizeof(buferr));
+        warn("readdir() %s %s", numacfg.c_str(), buferr);        
     }
 
     return nr;
