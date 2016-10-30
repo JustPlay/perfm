@@ -11,6 +11,11 @@
 #include <cstdio>
 #include <cstdlib>
 
+#ifdef  BUFERR
+#undef  BUFERR
+#endif
+#define BUFERR 256
+
 #define fatal(fmt, ...) do {                                               \
     fprintf(stderr, "[%s, %d, %s()]: ", __FILE__, __LINE__, __FUNCTION__); \
     fprintf(stderr, fmt, ##__VA_ARGS__);                                   \
@@ -29,6 +34,8 @@
 namespace util {
 
 std::vector<std::string> str_split(const std::string &str, const std::string &del, size_t limit = 0);
+
+ssize_t write_file(const char *file, void *buf, size_t sz);
 
 } /* namespace util */
 

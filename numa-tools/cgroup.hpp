@@ -20,9 +20,8 @@ public:
         return ptr_t(new cgroup);
     }
 
-    static std::string is_cgroup_supported();
-    static std::string is_cgroup_installed();
-    static std::string is_subsys_installed(const std::string &subsys);
+    static std::string is_supported();
+    static std::string is_installed(const std::string &subsys = "");
 
     ~cgroup() { }
 
@@ -37,15 +36,15 @@ private:
 public:
 
 private:
-    std::vector<std::string> system;     /* cgroup subsystem name list
-                                          * - cpuset:
-                                          * - memory:
-                                          * - blkio:
-                                          */
+    std::vector<std::string> system;       /* cgroup subsystem name list
+                                            * - cpuset:
+                                            * - memory:
+                                            * - blkio:
+                                            */
 
-    std::string path = "/sys/fs/cgroup/" /* where the cgroup filesystem is mounted,
-                                          * defaults to '/sys/fs/cgroup/'
-                                          */
+    std::string path = "/sys/fs/cgroup/";  /* where the cgroup filesystem is mounted,
+                                            * defaults to '/sys/fs/cgroup/'
+                                            */
 
 };
 
@@ -58,14 +57,18 @@ public:
         return ptr_t(new cpuset);
     }
 
+    static std::string is_installed() {
+        return cgroup::is_installed("cpuset");
+    }
+
     ~cpuset() { }
 
 private:
     cpuset() = default;
 
 public:
-    bool setcpus(std::string &cpulist);
-    bool setmems(std::string &memlist);
+    bool setcpus(const std::string &cpulist);
+    bool setmems(const std::string &memlist);
     bool settask(pid_t pid);
 
     std::string getcpus() const;
@@ -73,11 +76,11 @@ public:
     std::string gettask() const;
 
 private:
-    std::vector<pid_t> tasks;
+    cpuset::ptr_t parent;
 
-    std::string path = "cpuset/";        /* relative path to cgroup::root(),
-                                          * default to '/sys/fs/cgroup/cpuset'
-                                          */
+    std::string path = "cpuset/";  /* relative path to it's parent,
+                                    * default to '/sys/fs/cgroup/cpuset' (full path)
+                                    */
 };
 
 } /* namespace cgroup */

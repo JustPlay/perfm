@@ -3,6 +3,12 @@
 
 #include <vector>
 #include <string>
+#include <cstring>
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 namespace util {
 
@@ -46,6 +52,27 @@ std::vector<std::string> str_split(const std::string &str, const std::string &de
     }
     
     return std::move(result);
+}
+
+ssize_t write_file(const char *file, void *buf, size_t sz)
+{
+    int fd = ::open(file, 0, O_WRONLY); 
+    if (fd == -1) {
+        char buferr[BUFERR] = { '\0' };
+        strerror_r(errno, buferr, sizeof(buferr));
+        warn("open(): %s %s\n", file, buferr);
+        return -1;
+    } 
+
+    ssize_t nr = ::write(fd, buf, sz);
+    if (nr == -1) {
+        char buferr[BUFERR] = { '\0' };
+        strerror_r(errno, buferr, sizeof(buferr));
+        warn("write(): %s %s\n", file, buferr);
+        return -1;
+    }
+
+    return nr;
 }
 
 } /* namespace util */
