@@ -9,6 +9,7 @@
 #include <perfmon/pfmlib_perf_event.h>
 
 #include "perfm_util.hpp"
+#include "perfm_pmu.hpp"
 #include "perfm_option.hpp"
 #include "perfm_event.hpp"
 #include "perfm_evgrp.hpp"

@@ -11,7 +11,6 @@
 #include <vector>
 #include <string>
 
-#include <perfmon/pfmlib.h>      /* libpfm4 */
 #include <perfmon/perf_event.h>  /* libpfm4 */
 
 //
@@ -84,10 +83,6 @@ namespace perfm {
 int str_find(char **argv, int argc, const char *trg);
 
 void nanoseconds_sleep(double seconds, bool use_abs_clock = false);
-
-bool pmu_is_available(pfm_pmu_t pmu);
-
-void pr_pmu_list(bool pr_all = 0);
 
 /**
  * mround - Returns a number rounded to the desired multiple

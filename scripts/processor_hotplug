@@ -1,5 +1,43 @@
 #!/bin/sh
 
+#
+# Copyright (c) 2016 JustPlay (hy). All Rights Reserved
+#
+# Author:
+#     hy
+#
+# Date:
+#     2016/10/30
+#
+# Brief:
+#     disable the same number *cores* on each socket.
+#
+# Globals:
+#     CPU_CFG_DIR
+#
+# Arguments:
+#
+#     1, 2, 3, 4
+#
+# Returns:
+#     succ: 0
+#     fail: 1
+
+
+# set -u          # 使用的变量必须提前定义过
+# set -o nounset  # 使用的变量必须提前定义过
+
+# set -e          # 所有非0的返回状态都需要捕获
+# set -o errexit  # 所有非0的返回状态都需要捕获
+
+# set -o pipefail # 管道间错误需要捕获
+
+# set -x          #
+# set -o xtrace   #
+
+set -u
+
+
 function pr_msg()
 {
     msg="$*"
@@ -25,9 +63,9 @@ function pr_err()
 function pr_warning()
 {
     pr_err "Warning:"
-    pr_err "    (1) This script is used to disable *CORES* not *THREADS*"
-    pr_err "    (2) This script will disable the same numbers of cores on each socket"
-    pr_err "    (3) *BE CAREFUL* with the [Threads per core] argument"
+    pr_err "    (1) this script is used to disable *cores* not *threads*"
+    pr_err "    (2) this script will disable the same numbers of cores on each socket"
+    pr_err "    (3) *BE CAREFUL* with the [threads-per-core] argument"
 }
 
 function pr_usage()
@@ -36,7 +74,7 @@ function pr_usage()
     pr_msg ""
 
     pr_err "Usage:"
-    pr_err "    $(basename $0) <cores to disable> <threads per core> [sockets (defaults to 2)]"
+    pr_err "    $(basename $0) <cores-to-disable> <threads-per-core> [sockets (defaults to 2)]"
 }
 
 

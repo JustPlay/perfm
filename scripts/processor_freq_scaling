@@ -1,5 +1,42 @@
 #!/bin/bash
 
+#
+# Copyright (c) 2016 JustPlay (hy). All Rights Reserved
+#
+# Author:
+#     hy
+#
+# Date:
+#     2016/10/30
+#
+# Brief:
+#     handle processor frequency scaling setting issue.
+#
+# Globals:
+#     
+#
+# Arguments:
+#
+#     1, 2
+#
+# Returns:
+#     succ: 0
+#     fail: 1
+
+
+# set -u          # 使用的变量必须提前定义过
+# set -o nounset  # 使用的变量必须提前定义过
+
+# set -e          # 所有非0的返回状态都需要捕获
+# set -o errexit  # 所有非0的返回状态都需要捕获
+
+# set -o pipefail # 管道间错误需要捕获
+
+# set -x          #
+# set -o xtrace   #
+
+set -u
+
 function pr_msg()
 {
     msg="$*"

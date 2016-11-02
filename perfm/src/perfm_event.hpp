@@ -5,6 +5,8 @@
 #ifndef __PERFM_EVENT_HPP__
 #define __PERFM_EVENT_HPP__
 
+#include <cstdio>
+#include <cstdlib>
 #include <string>
 #include <memory>
 #include <tuple>
@@ -163,7 +165,7 @@ private:
     unsigned long plm; // privilege level mask, used by libpfm4
 };
 
-void ev2perf(const std::string &evn);
+void ev2perf(const std::string &evn, FILE *fp = stdout);
 
 } /* namespace perfm */
 

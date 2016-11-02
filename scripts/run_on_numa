@@ -1,5 +1,40 @@
 #!/bin/bash
 
+#
+# Copyright (c) 2016 JustPlay (hy). All Rights Reserved
+#
+# Author:
+#     hy
+#
+# Date:
+#     2016/10/30
+#
+# Brief:
+#     a alternative tool to 'numactl' base on cgroup.
+#
+# Globals:
+#     
+#
+# Arguments:
+#
+#     1, 2, 3, ...
+#
+# Returns:
+#     succ: 0
+#     fail: 1
+
+
+# set -u          # 使用的变量必须提前定义过
+# set -o nounset  # 使用的变量必须提前定义过
+
+# set -e          # 所有非0的返回状态都需要捕获
+# set -o errexit  # 所有非0的返回状态都需要捕获
+
+# set -o pipefail # 管道间错误需要捕获
+
+# set -x          #
+# set -o xtrace   #
+
 set -u
 
 
@@ -57,7 +92,7 @@ CMD=$(echo "$*" | gawk '{ for (i = 3; i <= NF; ++i) printf $i" " }')
 
 
 PATH_CGROUP_SYS="/sys/fs/cgroup" # the default mountpoint for cgroup filesystem
-PATH_CGROUP_USR="/tmp/cgroup1111"        # where cgroup will be mounted, if it can *not* be mount on the default mountpoint
+PATH_CGROUP_USR="/cgroup"        # where cgroup will be mounted, if it can *not* be mount on the default mountpoint
 PATH_CGROUP_MNT=""               # the real mountpoint for cgroup
 
 SYS_CFGDIR_NODE="/sys/devices/system/node/" # node configure directory

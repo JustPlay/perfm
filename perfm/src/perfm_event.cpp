@@ -21,7 +21,7 @@ namespace {
  * or
  *     <perfmon/perf_event.h>
  */
-const char *perf_event_type_desc[PERF_TYPE_MAX] = {
+const char *perf_evtype[PERF_TYPE_MAX] = {
     "PERF_TYPE_HARDWARE",
     "PERF_TYPE_SOFTWARE",
     "PERF_TYPE_TRACEPOINT",
@@ -193,10 +193,8 @@ void event_t::ev_prcfg() const
     /* TODO */    
 }
 
-void ev2perf(const std::string &evn)
+void ev2perf(const std::string &evn, FILE *fp)
 {
-    FILE *fp = stdout;
-
     struct perf_event_attr hw; 
     memset(&hw, 0, sizeof(hw));
 
@@ -213,12 +211,39 @@ void ev2perf(const std::string &evn)
     }
 
     fprintf(fp, "- Event - %s\n", evn.c_str());
-    fprintf(fp, "  perf.type      : %s\n"
-                "  perf.config    : %lu\n"
-                "  perf.disabled  : %s\n"
-                "      .inherit   : %s\n"
-                "      .pinned    : %s\n" 
-                "      .exclusive : %s\n"
+    fprintf(fp, "  perf.type                    : %s\n"
+                "  perf.config                  : %zx\n"
+                "  perf.disabled                : %s\n"
+                "      .inherit                 : %s\n"
+                "      .pinned                  : %s\n" 
+                "      .exclusive               : %s\n"
+                "      .exclude_user            : %s\n"
+                "      .exclude_kernel          : %s\n"
+                "      .exclude_hv              : %s\n"
+                "      .exclude_idle            : %s\n"
+                "      .inherit_stat            : %s\n"
+                "      .task                    : %s\n"
+                "      .exclude_callchain_kernel: %s\n"
+                "      .exclude_callchain_user  : %s\n"
+                "      .use_clockid             : %s\n"
+                "",
+                perf_evtype[hw.type],
+                hw.config,
+                hw.disabled                 ? "true" : "false",
+                hw.inherit                  ? "true" : "false",
+                hw.pinned                   ? "true" : "false",
+                hw.exclusive                ? "true" : "false",
+                hw.exclude_user             ? "true" : "false",
+                hw.exclude_kernel           ? "true" : "false",
+                hw.exclude_hv               ? "true" : "false",
+                hw.exclude_idle             ? "true" : "false",
+                hw.inherit_stat             ? "true" : "false",
+                hw.task                     ? "true" : "false",
+                hw.exclude_callchain_kernel ? "true" : "false",
+                hw.exclude_callchain_user   ? "true" : "false",
+                hw.use_clockid              ? "true" : "false"
+            );
+    fprintf(fp, "\n");
 
 }
 
