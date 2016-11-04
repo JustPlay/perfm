@@ -56,7 +56,7 @@ int event_t::ev_open(const std::string &evn, pid_t pid, int grp, int cpu, unsign
 
     pfm_err_t ret = pfm_get_os_event_encoding(this->nam.c_str(), this->plm, PFM_OS_PERF_EVENT, &arg);
     if (ret != PFM_SUCCESS) {
-        perfm_warning("event encoding error: %s, %s\n", this->nam.c_str(), pfm_strerror(ret));
+        perfm_warning("%s, %s\n", this->nam.c_str(), pfm_strerror(ret));
         return -1;
     }
 
@@ -183,7 +183,7 @@ void event_t::ev_print() const
         fp = stdout;
     }
 
-    fprintf(fp, "- Event - %s\n", this->ev_nam().c_str());
+    fprintf(fp, "- EVENT - %s\n", this->ev_nam().c_str());
     fprintf(fp, "  pmu curr: %zu  %zu  %zu\n", pmu_curr[0], pmu_curr[1], pmu_curr[2]);
     fprintf(fp, "  pmu prev: %zu  %zu  %zu\n", pmu_prev[0], pmu_prev[1], pmu_prev[2]);
 }
@@ -206,13 +206,13 @@ void ev2perf(const std::string &evn, FILE *fp)
 
     pfm_err_t ret = pfm_get_os_event_encoding(evn.c_str(), PFM_PLM3 | PFM_PLM0, PFM_OS_PERF_EVENT, &arg);
     if (ret != PFM_SUCCESS) {
-        perfm_warning("event encoding error: %s, %s\n", evn.c_str(), pfm_strerror(ret));
+        perfm_warning("%s, %s\n", evn.c_str(), pfm_strerror(ret));
         return;
     }
 
-    fprintf(fp, "- Event - %s\n", evn.c_str());
+    fprintf(fp, "- EVENT - %s\n", evn.c_str());
     fprintf(fp, "  perf.type                    : %s\n"
-                "  perf.config                  : %zx\n"
+                "      .config                  : %zx\n"
                 "  perf.disabled                : %s\n"
                 "      .inherit                 : %s\n"
                 "      .pinned                  : %s\n" 
