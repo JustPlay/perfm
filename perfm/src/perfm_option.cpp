@@ -184,7 +184,7 @@ int options_t::parse_cmd_args(int argc, char **argv)
                 break;
 
             case 'e':
-                this->ev_groups = explode(";", optarg, options_t::nr_group_supp());
+                this->ev_groups = str_split(optarg, ";", options_t::nr_group_supp());
                 break;
 
             case 'i':
@@ -273,7 +273,7 @@ void options_t::pr_options() const
 
     int i = 0;
     for (const auto &grp : ev_groups) {
-        auto ev_list = explode(",", grp, options_t::nr_event_supp()); 
+        auto ev_list = str_split(grp, ",", options_t::nr_event_supp()); 
         
         fprintf(fp, "- Event Group #%d (%lu events)\n", i++, ev_list.size());
         for (const auto &ev : ev_list) {

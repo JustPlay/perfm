@@ -80,18 +80,14 @@
 
 namespace perfm {
 
-int str_find(char **argv, int argc, const char *trg);
-
-void nanoseconds_sleep(double seconds, bool use_abs_clock = false);
-
 /**
- * mround - Returns a number rounded to the desired multiple
+ * mround - returns a number rounded to the desired multiple
  * 
- * @number    The value to round
- * @multiple  The multiple to which you want to round number
+ * @number    the value to round
+ * @multiple  the multiple to which you want to round number
  *
  * Return: 
- *     A double value
+ *     a double value
  *
  * Description:
  *     mround() rounds up away from zero, if the remainder of
@@ -99,40 +95,72 @@ void nanoseconds_sleep(double seconds, bool use_abs_clock = false);
  *     half the value of multiple.
  *
  * FIXME:
- *     If @multiple is zero, we just return @number for now
+ *     if @multiple is zero, we just return @number for now
  */
 double mround(double number, double multiple);
 
 /**
- * explode - Split a string by string
+ * nanoseconds_sleep - high-resolution sleep without EINTR 
  *
- * @delimiter  The boundary string
- * @str        The input string
- * @limit      If set and positive, the returned std::vector will contain a maximum of @limit 
- *             elements with the last element containing the rest of @str
- *             If the @limit parameter is zero or negative, then this is treated as 1
+ * @seconds        time to sleep (can be a float value, e.g. 0.01)
+ * @use_abs_clock  see time.h for linux
  *
  * Return:
- *     An std::vector of strings created by splitting the @str parameter on boundaries formed by the @delimiter
+ *     void
+ *
+ * Description:
+ *     nanoseconds_sleep will ...
+ * 
+ * TODO:
+ *     sleep with ABS clock has not impled
+ */
+void nanoseconds_sleep(double seconds, bool use_abs_clock = false);
+
+/**
+ * str_find - find the target string in the given string array
+ *
+ * @argv  same as argv for main()
+ * @argc  same as argc for main()
+ * @trg   a NULL terminated C style string
+ *
+ * Return:
+ *     the subscript of the @trg in @argv or -1
+ *
+ * Description:
+ *
+ */
+int str_find(char **argv, int argc, const char *trg);
+
+
+/**
+ * str_split - split a string by string
+ *
+ * @str    the input string to split
+ * @del    the boundary string
+ * @limit  if set and positive, the returned std::vector will contain a maximum of @limit + 1 
+ *         elements with the last element containing the rest of @str
+ *         if the @limit parameter is zero or default, then it is treated as @str.size()
+ *
+ * Return:
+ *     a std::vector of strings created by splitting the @str parameter on boundaries formed by the @del
  * 
  * Description:  
  *     none
- *
- * TODO:
- *     Impl it the same as php::explode
  */
-std::vector<std::string> explode(const std::string &delimiter, const std::string &str, size_t limit = 0);
+std::vector<std::string> str_split(const std::string &str, const std::string &del, size_t limit = 0);
 
-inline std::vector<std::string> explode(const char *delimiter, const char *str, size_t limit = 0) 
-{
-    return explode(std::string(delimiter), std::string(str), limit);
-}
-
-std::string str_trim(const std::string &);
-
-inline std::string str_trim(const char *str) {
-    return str_trim(std::string(str));
-}
+/**
+ * str_trim - remove space in both left and right of the given string
+ *
+ * @str  the string to trim
+ *
+ * Return:
+ *     the trimed version (copy) of @str
+ *     
+ * Description:
+ *
+ */
+std::string str_trim(const std::string &str);
 
 } /* namespace perfm */
 

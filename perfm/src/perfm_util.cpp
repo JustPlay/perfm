@@ -12,47 +12,6 @@
 
 namespace perfm {
 
-std::string str_trim(const std::string &str)
-{
-    if (str.empty()) {
-        return str;
-    }
-
-    std::string::size_type s = 0, e = str.size() - 1;
-
-    while (s <= e && std::isspace(str[s])) {
-        ++s;
-    }
-
-    while (e >= s && std::isspace(str[e])) {
-        --e;
-    }
-
-    if (s <= e) {
-        return str.substr(s, e - s + 1);
-    }
-    
-    return "";
-}
-
-// @argv  same as 'argv' in main()
-// @argc  same as 'argc' in main()
-// @trg   pointer to a '\0' ended C string
-int str_find(char **argv, int argc, const char *trg)
-{
-    if (!trg || !argv || argc <= 0) {
-        return -1;
-    }
-
-    for (int i = 0; i < argc; ++i) {
-        if (std::strcmp(trg, argv[i]) == 0) {
-            return i;
-        }  
-    }
-
-    return -1;
-}
-
 void nanoseconds_sleep(double seconds, bool use_abs_clock)
 {
     long int sec  = static_cast<long int>(seconds);
@@ -100,39 +59,83 @@ double mround(double number, double multiple)
     return std::round(number / multiple) * multiple;
 }
 
-std::vector<std::string> explode(const std::string &delimiter, const std::string &str, size_t limit)
+std::string str_trim(const std::string &str)
 {
-    if (limit == 0 && delimiter == "") {
-        return std::move(std::vector<std::string>({ str }));
+    if (str.empty()) {
+        return str;
     }
 
+    std::string::size_type s = 0, e = str.size() - 1;
+
+    while (s <= e && std::isspace(str[s])) {
+        ++s;
+    }
+
+    while (e >= s && std::isspace(str[e])) {
+        --e;
+    }
+
+    if (s <= e) {
+        return str.substr(s, e - s + 1);
+    }
+    
+    return "";
+}
+
+int str_find(char **argv, int argc, const char *trg)
+{
+    if (!trg || !argv || argc <= 0) {
+        return -1;
+    }
+
+    for (int i = 0; i < argc; ++i) {
+        if (std::strcmp(trg, argv[i]) == 0) {
+            return i;
+        }  
+    }
+
+    return -1;
+}
+
+std::vector<std::string> str_split(const std::string &str, const std::string &del, size_t limit)
+{
     std::vector<std::string> result;
 
-    std::string::size_type search_pos = 0;
-    std::string::size_type target_pos = 0;
-
-    do {
-        target_pos = str.find_first_of(delimiter, search_pos);
-
-        if (target_pos != std::string::npos) {
-            result.push_back(str.substr(search_pos, target_pos - search_pos));
-
-            if (--limit) {
-                search_pos = target_pos + delimiter.size();
-            } else {
-                search_pos = target_pos;
-            }
-        } else {
-            result.push_back(str.substr(search_pos));
-            search_pos = std::string::npos;
-            break;
-        }
-    } while (limit && search_pos < str.size());
-
-    if (search_pos < str.size()) {
-        result.push_back(str.substr(search_pos));
+    if (str.empty()) {
+        return std::move(result);
     }
 
+    if (del.empty()) {
+        result.push_back(str);
+        return std::move(result);
+    }
+
+    size_t search = 0;
+    size_t target = 0;
+
+    if (!limit) {
+        limit = str.size();
+    }
+
+    while (limit && search < str.size()) {
+        target = str.find_first_of(del, search);
+        if (target != std::string::npos) {
+            result.push_back(str.substr(search, target - search));
+            if (--limit) {
+                search = target + del.size();
+            } else {
+                search = target;
+            }
+        } else {
+            result.push_back(str.substr(search));
+            break;
+        }
+    }
+
+    if (!limit && search < str.size()) {
+        result.push_back(str.substr(search));
+    }
+    
     return std::move(result);
 }
 

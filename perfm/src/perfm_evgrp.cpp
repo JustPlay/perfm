@@ -18,7 +18,7 @@ namespace perfm {
 
 int evgrp_t::gr_open(const std::string &ev_list, pid_t pid, int cpu, const std::string &plm)
 {
-    auto ev_argv = explode(",", ev_list, options_t::nr_event_supp()); 
+    auto ev_argv = str_split(ev_list, ",", options_t::nr_event_supp()); 
     return this->gr_open(ev_argv, pid, cpu, plm);
 }
 
