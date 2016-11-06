@@ -18,7 +18,48 @@
 
 #include <cstdint>
 
+#include <perfmon/perf_event.h>
 #include <perfmon/pfmlib_perf_event.h>
+
+/*
+ * Request timing information because event or/and PMU may be multiplexed
+ * and thus it may not count all the time.
+ * 
+ * The scaling information will be used to scale the raw count
+ * as if the event had run all along. The scale rules are list bellow:
+ *
+ * - TIME_RUNNING <= TIME_ENABLED
+ * - TIME_RUNNING != 0 
+ * - RAW_COUNT * TIME_ENABLED / TIME_RUNNING
+ *
+ * The read format *without* PERF_FORMAT_GROUP:
+ * struct {
+ *     u64 nr;
+ *     u64 time_enabled; // PERF_FORMAT_TOTAL_TIME_ENABLED 
+ *     u64 time_running; // PERF_FORMAT_TOTAL_TIME_RUNNING
+ * }
+ *
+ * The read format *with* PERF_FORMAT_GROUP enabled:
+ * struct {
+ *     u64 nr;
+ *     u64 time_enabled; // PERF_FORMAT_TOTAL_TIME_ENABLED 
+ *     u64 time_running; // PERF_FORMAT_TOTAL_TIME_RUNNING
+ *     {
+ *         u64 value;
+ *         u64 id;  // PERF_FORMAT_ID 
+ *     } cntr[nr];
+ * } // PERF_FORMAT_GROUP
+ *
+ * NOTE: perfm always enable PERF_FORMAT_TOTAL_TIME_ENABLED, PERF_FORMAT_TOTAL_TIME_RUNNING 
+ *       perf_event_open(2)
+ */
+
+#ifdef  PEV_RDFMT_TIMEING
+#undef  PEV_RDFMT_TIMEING
+#endif
+#define PEV_RDFMT_TIMEING (PERF_FORMAT_TOTAL_TIME_ENABLED | PERF_FORMAT_TOTAL_TIME_RUNNING)
+
+#define PEV_RDFMT_EVGROUP (PERF_FORMAT_GROUP)
 
 namespace perfm {
 

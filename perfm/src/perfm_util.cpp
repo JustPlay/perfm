@@ -1,3 +1,10 @@
+/**
+ * perfm_util.cpp - 
+ *
+ */
+
+#include "perfm_util.hpp"
+
 #include <cmath>
 #include <cstring>
 #include <cstdlib>
@@ -6,9 +13,12 @@
 #include <vector>
 #include <string>
 
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <time.h>
-
-#include "perfm_util.hpp"
+#include <unistd.h>
+#include <error.h>
 
 namespace perfm {
 
@@ -137,6 +147,41 @@ std::vector<std::string> str_split(const std::string &str, const std::string &de
     }
     
     return std::move(result);
+}
+
+bool write_file(const char *filp, void *buf, size_t sz)
+{
+    if (!filp || !buf || !sz) {
+        return false;
+    }
+
+    int fd = ::open(filp, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH); 
+    if (fd == -1) {
+        char errbuf[PERFM_BUFERR] = { '\0' };        
+        strerror_r(errno, errbuf, sizeof(errbuf));
+        perfm_warning("::open() %s %s\n", filp, errbuf);
+        return false;
+    }
+
+    ssize_t nr = 0;
+    do {
+        nr = ::write(fd, buf, sz); 
+        if (nr == -1) {
+            if (errno == EINTR) {
+                continue;
+            } else {
+                char errbuf[PERFM_BUFERR] = { '\0' };
+                strerror_r(errno, errbuf, sizeof(errbuf));
+                perfm_warning("::write() %s %s\n", filp, errbuf);
+                return false;
+            }
+        }
+
+        buf = static_cast<char *>(buf) + nr;
+        sz -= nr;
+    } while (sz);
+
+    return true;
 }
 
 } /* namespace perfm */

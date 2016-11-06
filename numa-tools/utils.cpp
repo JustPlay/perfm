@@ -54,13 +54,13 @@ std::vector<std::string> str_split(const std::string &str, const std::string &de
     return std::move(result);
 }
 
-ssize_t write_file(const char *file, void *buf, size_t sz)
+ssize_t write_file(const char *filp, void *buf, size_t sz)
 {
-    int fd = ::open(file, 0, O_WRONLY); 
+    int fd = ::open(filp, O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, S_IRUSR | S_IRGRP | S_IROTH); 
     if (fd == -1) {
         char buferr[BUFERR] = { '\0' };
         strerror_r(errno, buferr, sizeof(buferr));
-        warn("open(): %s %s\n", file, buferr);
+        warn("open(): %s %s\n", filp, buferr);
         return -1;
     } 
 
@@ -68,7 +68,7 @@ ssize_t write_file(const char *file, void *buf, size_t sz)
     if (nr == -1) {
         char buferr[BUFERR] = { '\0' };
         strerror_r(errno, buferr, sizeof(buferr));
-        warn("write(): %s %s\n", file, buferr);
+        warn("write(): %s %s\n", filp, buferr);
         return -1;
     }
 
