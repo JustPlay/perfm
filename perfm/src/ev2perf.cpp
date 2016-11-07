@@ -40,7 +40,7 @@ int main(int argc, char **argv)
 
     pfm_err_t ret = pfm_initialize();
     if (ret != PFM_SUCCESS) {
-        perfm_error("pfm_initialize(): %s\n", pfm_strerror(ret)); 
+        perfm_fatal("pfm_initialize() failed, %s\n", pfm_strerror(ret)); 
     }
 
     std::string evn;

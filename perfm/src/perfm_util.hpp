@@ -5,11 +5,17 @@
 #ifndef __PERFM_UTIL_HPP__
 #define __PERFM_UTIL_HPP__
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE  /* strerror_r(2) */
+#endif
+
 #include <cstdio>
 #include <cstdlib>
 
 #include <vector>
 #include <string>
+
+#include <errno.h>
 
 //
 // http://www.cnblogs.com/caosiyang/archive/2012/08/21/2648870.html
@@ -18,23 +24,23 @@
 // #define LOG(format, args...) fprintf(stdout, format, ##args)
 //
 
-#define perfm_error(fmt, ...) do {                                           \
+#define PERFM_BUFERR 256
+#define PERFM_BUFSIZ 8192
+
+#define perfm_fatal(fmt, ...) do {                                           \
     fprintf(stderr, "[%s, %d, %s()]: ", __FILE__, __LINE__, __FUNCTION__);   \
     fprintf(stderr, fmt, ##__VA_ARGS__);                                     \
     exit(EXIT_FAILURE);                                                      \
 } while (0)
 
-#define perfm_warning(fmt, ...) do {                                         \
+#define perfm_warn(fmt, ...) do {                                            \
     fprintf(stderr, "[%s, %d, %s()]: ", __FILE__, __LINE__, __FUNCTION__);   \
     fprintf(stderr, fmt, ##__VA_ARGS__);                                     \
 } while (0)
 
-#define perfm_message(fmt, ...) do {                                         \
+#define perfm_info(fmt, ...) do {                                            \
     fprintf(stdout, fmt, ##__VA_ARGS__);                                     \
 } while (0)
-
-#define PERFM_BUFERR 256
-#define PERFM_BUFSIZ 8192
 
 namespace perfm {
 
@@ -121,20 +127,36 @@ std::vector<std::string> str_split(const std::string &str, const std::string &de
 std::string str_trim(const std::string &str);
 
 /**
- * write_file - write to the specified file (without EINTR)
+ * save_file - save content specified by @buf & @sz to the file specified by @filp
  *
- * @filp  filepath to write to
+ * @filp  filepath to save to
  * @buf   
  * @sz
  *
  * Return:
- *     true  - write succ
- *     false - write fail
+ *     true  - save succ
+ *     false - save fail
  * 
  * Descritpion:
- *
+ *     if @filp does not exist, it will be created
+ *     if @filp already existed, it will be truncted first
  */
-bool write_file(const char *filp, void *buf, size_t sz);
+bool save_file(const char *filp, void *buf, size_t sz);
+
+/**
+ * read_file - read the entire file specified by @filp
+ *
+ * @filp  filepath to read
+ * @sz    filesize
+ *
+ * Return:
+ *     a dynamicly allocated buffer which contains the entrie file or NULL if error occured
+ *     if @sz not NULL, it will point to the filesize (the size of the returned buffer)
+ * 
+ * Descritpion:
+ *     the return buffer should be freed by the caller
+ */
+void *read_file(const char *filp, size_t *sz = NULL);
 
 } /* namespace perfm */
 

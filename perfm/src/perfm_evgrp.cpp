@@ -53,7 +53,7 @@ int evgrp_t::gr_open(const std::vector<std::string> &ev_argv, pid_t pid, int cpu
         }
 
         if (!plm_val) {
-            perfm_warning("%s\n", "privilege level mask should *not* zero");
+            perfm_warn("privilege level mask should *not* be zero\n");
         }
 
         this->plm = plm_val;
@@ -61,10 +61,10 @@ int evgrp_t::gr_open(const std::vector<std::string> &ev_argv, pid_t pid, int cpu
         pfm_err_t ret = pfm_get_os_event_encoding(ev_argv[i].c_str(), this->plm, PFM_OS_PERF_EVENT, &arg);
         if (ret != PFM_SUCCESS) {
             if (perfm_options.ignore_error) {
-                perfm_warning("invalid event (ignored): %s\n", ev_argv[i].c_str());
+                perfm_warn("invalid event (ignored), %s\n", ev_argv[i].c_str());
                 continue;
             } else {
-                perfm_error("error on event encoding: %s %s\n", ev_argv[i].c_str(), pfm_strerror(ret));
+                perfm_fatal("event encoding error, %s %s\n", ev_argv[i].c_str(), pfm_strerror(ret));
             }
         }
 
@@ -108,15 +108,15 @@ size_t evgrp_t::gr_read()
 
         uint64_t *val = new uint64_t[siz_buffer];
         if (!val) {
-            perfm_error("can't allocate memory: %zu bytes\n", siz_buffer);
+            perfm_fatal("memory allocate failed for %zu bytes\n", siz_buffer);
         }
 
         ssize_t ret = ::read(this->gr_leader()->ev_fd(), val, siz_buffer);
         if (ret == -1) {
-            perfm_error("%s\n", "error occured when read events counters");
+            perfm_fatal("%s\n", "error occured reading pmu counters");
         } 
         if (ret < siz_buffer) {
-            perfm_warning("read events counters, need read %zu bytes, actually read %zd bytes\n", siz_buffer, ret);
+            perfm_warn("read events counters, need %zu bytes, actually %zd bytes\n", siz_buffer, ret);
         }
 
         for (size_t i = 0; i < num_events; ++i) {

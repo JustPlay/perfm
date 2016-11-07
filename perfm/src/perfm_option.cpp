@@ -191,9 +191,8 @@ int options_t::parse_cmd_args(int argc, char **argv)
                 this->in_file = std::move(std::string(optarg));
                 this->in_fp   = ::fopen(optarg, "r");
                 if (!this->in_fp) {
-                    char buferr[PERFM_BUFERR] = { '\0' };
-                    strerror_r(errno, buferr, sizeof(buferr));
-                    perfm_error("error occured on ::fopen(): %s, %s\n", optarg, buferr);
+                    char *err = strerror_r(errno, NULL, 0);
+                    perfm_fatal("fopen(): %s %s\n", optarg, err);
                 }
                 break;
 
@@ -201,9 +200,8 @@ int options_t::parse_cmd_args(int argc, char **argv)
                 this->out_file = std::move(std::string(optarg));
                 this->out_fp   = ::fopen(optarg, "w");
                 if (!this->out_fp) {
-                    char buferr[PERFM_BUFERR] = { '\0' };
-                    strerror_r(errno, buferr, sizeof(buferr));
-                    perfm_error("error occured on ::fopen(): %s, %s\n", optarg, buferr);
+                    char *err = strerror_r(errno, NULL, 0);
+                    perfm_fatal("fopen(): %s %s\n", optarg, err);
                 }
                 break;
 
@@ -238,16 +236,16 @@ int options_t::parse_cmd_args(int argc, char **argv)
 
         if (this->in_file != "") {
             if (!parse_evcfg_file()) {
-                perfm_error("error occured on event parsing (%s), exit...\n", this->in_file.c_str());
+                perfm_fatal("event parsing (%s) error, exit...\n", this->in_file.c_str());
             } 
         }
     
     } else if (perfm_options.running_mode == PERFM_RUNNING_MODE_SAMPLE) {
-        perfm_error("%s\n", "TODO");    
+        perfm_fatal("%s\n", "TODO");    
     } else if (perfm_options.running_mode == PERFM_RUNNING_MODE_ANALYZE) {
-        perfm_error("%s\n", "TODO");    
+        perfm_fatal("%s\n", "TODO");    
     } else {
-        perfm_error("%s\n", "this should never happen!");    
+        perfm_fatal("%s\n", "this should never happen!");    
     }
 
     return COMM_OPTIONS_VALID;

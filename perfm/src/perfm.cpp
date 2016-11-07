@@ -1,3 +1,10 @@
+#include "perfm_util.hpp"
+#include "perfm_pmu.hpp"
+#include "perfm_option.hpp"
+#include "perfm_event.hpp"
+#include "perfm_evgrp.hpp"
+#include "perfm_monitor.hpp"
+
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -6,14 +13,11 @@
 #include <libgen.h>
 #include <unistd.h>
 
-#include <perfmon/pfmlib_perf_event.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
-#include "perfm_util.hpp"
-#include "perfm_pmu.hpp"
-#include "perfm_option.hpp"
-#include "perfm_event.hpp"
-#include "perfm_evgrp.hpp"
-#include "perfm_monitor.hpp"
+#include <perfmon/pfmlib_perf_event.h>
 
 
 int main(int argc, char **argv)
@@ -51,7 +55,7 @@ int main(int argc, char **argv)
     // Step 2. initialize libpfm
     pfm_err_t ret = pfm_initialize();
     if (ret != PFM_SUCCESS) {
-        perfm_error("pfm_initialize(): %s\n", pfm_strerror(ret)); 
+        perfm_fatal("pfm_initialize() failed, %s\n", pfm_strerror(ret)); 
     }
 
     // Step 3. dump the configure for this run of perfm
