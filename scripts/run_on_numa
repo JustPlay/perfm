@@ -38,21 +38,37 @@
 set -u
 
 
+declare -r GREP="/bin/grep"
+declare -r GAWK="/bin/gawk"
+declare -r ECHO="/bin/echo"
+
+declare -r CAT="/bin/cat"
+
 function pr_msg()
 {
-    msg="$*"
+    local msg="$*"
     echo "$msg"
 }
 
 function pr_nnl()
 {
-    msg="$*"
+    local msg="$*"
     echo -n "$*"
+}
+
+function pr_err_with_time()
+{
+    local msg="$*"
+    if [ -w /dev/stderr ]; then
+        echo "[$(date +'%Y-%m-%d-%H:%M:%S')] $msg" >> /dev/stderr
+    else
+        echo "[$(date +'%Y-%m-%d-%H:%M:%S')] $msg"
+    fi
 }
 
 function pr_err()
 {
-    msg="$*"
+    local msg="$*"
     if [ -w /dev/stderr ]; then
         echo "$msg" >> /dev/stderr
     else
@@ -60,123 +76,141 @@ function pr_err()
     fi
 }
 
+function pr_warning()
+{
+    pr_err "Warning:"
+    pr_err "    this script do 'Socket' && 'Memory' binding by using 'cgroup'"
+    pr_err "    so, you will need root privilege to run it. BE CAREFULL"
+    pr_err ""
+    pr_err "NODE:"
+    pr_err "    if possible, use 'numactl' or 'taskset' is preffered"
+}
+
 function usage()
 {
-    pr_msg "Usage: $(basename $0) <cpu-node> <mem-node> <command>"
+    pr_err "Usage:"
+    pr_err "    $(basename $0) <cpu-node> <mem-node> <command> [args...]"
+    pr_err ""
+
+    pr_warning
 }
 
 
-if [ $EUID -ne 0 ]; then
-    pr_msg "----------------------------------------------------------------------"
-    pr_msg "- Warning:                                                           -"
-    pr_msg "-      this script do 'Socket' && 'Memory' binding by using 'cgroup' -"
-    pr_msg "-      so, you will need root privilege to run it. BE CAREFULL       -"
-    pr_msg "-                                                                    -"
-    pr_msg "- NODE:                                                              -"
-    pr_msg "-      if possible, use 'numactl' or 'taskset' is preffered          -"
-    pr_msg "----------------------------------------------------------------------"
+declare -r PATH_CGROUP_MNT="/sys/fs/cgroup:/cgroup:/tmp/cgroup:$HOME/cgroup" # where to mount the cgroup filesystem
 
-    exit 0
-fi
+declare -r SYS_CFGDIR_NODE="/sys/devices/system/node/" # node configure directory
+declare -r SYS_CFGFLE_NODE=""                          # node configure file
 
 
-if [ $# -lt 3 ]; then
+function cgroup_mount()
+{
+    local path_cgroup="" 
+
+    local if_cgroup_support=$($CAT /proc/filesystems | $GREP 'cgroup')
+    local if_cgroup_mounted=$(mount | $GREP 'cgroup')
+
+    # cgroup not supported
+    if [ -z "$if_cgroup_support" ]; then
+        pr_err "fatal error: cgroup not supported on this system"
+        exit 1
+    fi
+
+    #  cgroup not mounted
+    if [ -z "$if_cgroup_mounted" ]; then
+        
+        local nr_path=$(echo $1 | $GAWK -F':' '{ print NF }')
+
+        for ((i=1; i<=$nr_path; i++))
+        do
+            local path_dir=$(echo $1 | $GAWK -F':' -v field_id="$i" '{ print $field_id }')
+
+            [[ -d $path_dir ]] || mkdir -p $path_dir > /dev/null 2>&1
+
+            if [ -d $path_dir ]; then
+                path_cgroup=$path_dir
+                break
+            fi
+        done
+
+        mount -t cgroup none $path_cgroup
+        if [ $? -ne 0 ]; then
+            pr_msg "fatal error: can not mount cgroup filesystem to $path_cgroup"
+            exit 1
+        fi
+
+    # cgroup had been mounted
+    else
+        path_cgroup=$(mount | $GREP 'type cgroup' | $GAWK -F' ' '{ print $3 }');
+    fi
+
+    echo $path_cgroup
+}
+
+    
+function entry()
+{
+    local cpu_node=$1
+    local mem_node=$2
+    local cmd_exec=$(echo "$*" | $GAWK '{ for (i = 3; i <= NF; ++i) printf $i" " }')
+
+    local node_list=$(ls $SYS_CFGDIR_NODE | $GREP 'node[0-9]\{1,\}') # node list on this system
+    local node_onln=$(echo $node_list | $GAWK -F' ' '{ print NF }')  # node nums on this system
+
+    if [ $cpu_node -ge $node_onln ] || [ $mem_node -ge $node_onln ]; then
+        pr_err "invalid argument: node number too big"
+        exit 1
+    fi
+
+    local cpulist_node=$($CAT $SYS_CFGDIR_NODE/node$cpu_node/cpulist)
+    local memlist_node=$mem_node
+
+    local path_cgroup=$(cgroup_mount $PATH_CGROUP_MNT)
+    if [ -z "$path_cgroup" ]; then
+        pr_err "fatal error: where to mount the cgroup filesystem ?"
+        exit 1
+    fi
+
+    local name_cgroup=$(basename $0).$$
+
+    mkdir -p $path_cgroup/$name_cgroup > /dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        pr_err "fatal error: can not creat dir $path_cgroup/$name_cgroup"
+        exit 1
+    fi
+
+    echo $cpulist_node > $path_cgroup/$name_cgroup/cpuset.cpus
+    if [ $? -ne 0 ]; then
+        pr_err "fatal errror: cpu-node binding failed"
+        exit 1
+    fi
+
+    echo $memlist_node > $path_cgroup/$name_cgroup/cpuset.mems
+    if [ $? -ne 0 ]; then
+        pr_err "fatal errror: mem-node binding failed"
+        exit 1
+    fi
+
+    echo $$ > $path_cgroup/$name_cgroup/tasks
+    if [ $? -ne 0 ]; then
+        pr_err "fatal error: failed to add task to cgroup.tasks"
+        exit 1
+    fi
+
+    pr_msg "--------------------------------------------------------------------"
+    pr_msg "- process pid     : $$"
+    pr_msg "- cgroup path     : $path_cgroup/$name_cgroup"
+    pr_msg "- command to exec : $cmd_exec"
+    pr_msg "--------------------------------------------------------------------"
+
+    exec $cmd_exec
+}
+
+
+# entry: start from here
+if [ $EUID -ne 0 ] || [ $# -lt 3 ]; then
     usage
     exit 1
 fi
 
+cd $(dirname $0) && entry "$@"
 
-CPU=$1
-MEM=$2
-CMD=$(echo "$*" | gawk '{ for (i = 3; i <= NF; ++i) printf $i" " }')
-
-
-PATH_CGROUP_SYS="/sys/fs/cgroup" # the default mountpoint for cgroup filesystem
-PATH_CGROUP_USR="/cgroup"        # where cgroup will be mounted, if it can *not* be mount on the default mountpoint
-PATH_CGROUP_MNT=""               # the real mountpoint for cgroup
-
-SYS_CFGDIR_NODE="/sys/devices/system/node/" # node configure directory
-SYS_CFGFLE_NODE=""                          # node configure file
-
-NODE_LIST=$(ls $SYS_CFGDIR_NODE | grep 'node')                          # node list on this system
-NODE_ONLN=$(echo $NODE_LIST | grep 'node' | gawk -F' ' '{ print NF }'); # node numbers on this system
-
-if [ $CPU -ge $NODE_ONLN ] || [ $MEM -ge $NODE_ONLN ]; then
-    pr_msg "Invalid argument: node number too big"
-    exit 1
-fi
-
-
-CPULIST_NODE=$(cat $SYS_CFGDIR_NODE/node$CPU/cpulist)
-MEMLIST_NODE=$MEM
-
-IF_CGROUP_SUPPORT=$(cat /proc/filesystems | grep 'cgroup')
-IF_CGROUP_MOUNTED=$(mount | grep 'cgroup')
-
-if [ -z "$IF_CGROUP_SUPPORT" ]; then
-    pr_msg "cgroup not supported on this system, exit..."
-    exit 1
-fi
-
-if [ -z "$IF_CGROUP_MOUNTED" ]; then
-
-    [[ -d $PATH_CGROUP_SYS ]] || mkdir -p $PATH_CGROUP_SYS
-    if [ -d $PATH_CGROUP_SYS ]; then
-        PATH_CGROUP_MNT=$PATH_CGROUP_SYS
-    fi
-
-    if [ -z "$PATH_CGROUP_MNT" ]; then
-        [[ -d $PATH_CGROUP_USR ]] || mkdir -p $PATH_CGROUP_USR
-        if [ -d $PATH_CGROUP_USR ]; then
-            PATH_CGROUP_MNT=$PATH_CGROUP_USR
-        fi
-    fi
-
-    if [ -z "$PATH_CGROUP_MNT" ] || [ ! -d $PATH_CGROUP_MNT ]; then
-        pr_msg "Error occured when creating cgroup mount dir, exit..."
-        exit 1
-    fi
-
-    mount -t cgroup none $PATH_CGROUP_MNT
-    if [ $? -ne 0 ]; then
-        pr_msg "Error occured when mounting cgroup filesystem, exit..."
-        exit 1
-    fi
-else
-    PATH_CGROUP_MNT=$(mount | grep 'cgroup' | gawk -F' ' '{ print $3 }');
-fi
-
-
-CGROUP_NAME=$(basename $0).$$
-
-mkdir -p $PATH_CGROUP_MNT/$CGROUP_NAME
-if [ $? -ne 0 ]; then
-    pr_msg "Error occured when creating sub-cgroup for..."
-    exit 1
-fi
-
-echo $CPULIST_NODE > $PATH_CGROUP_MNT/$CGROUP_NAME/cpuset.cpus
-if [ $? -ne 0 ]; then
-    pr_msg "Error occured when setting cpu-node binding"
-    exit 1
-fi
-
-echo $MEMLIST_NODE > $PATH_CGROUP_MNT/$CGROUP_NAME/cpuset.mems
-if [ $? -ne 0 ]; then
-    pr_msg "Error occured when setting mem-node binding"
-    exit 1
-fi
-
-echo $$ > $PATH_CGROUP_MNT/$CGROUP_NAME/tasks
-if [ $? -ne 0 ]; then
-    pr_msg "Error occured when add task to cgroup.tasks"
-    exit 1
-fi
-
-pr_msg "--------------------------------------------------------------------"
-pr_msg "- process pid     : $$"
-pr_msg "- cgroup path     : $PATH_CGROUP_MNT/$CGROUP_NAME"
-pr_msg "- command to exec : $CMD"
-pr_msg "--------------------------------------------------------------------"
-
-exec $CMD

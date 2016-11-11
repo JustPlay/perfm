@@ -1,0 +1,37 @@
+
+Fixing uncore frequency
+    Uncore frequency can be set by writing the same value for both minimum and maximum 
+    frequency through MSR 0x620 on each socket.
+    
+    In MSR 0x620, bits 0-7 indicate the maximum frequency (in units of 100Mhz),
+    while bits 8-15 capture the minimum frequency. 
+
+    For example, if you want to set the uncore frequency to 2700 MHz,
+    you need to write the value 27 (0x1b in hex) for both max and min frequency.
+    So, 0x1b1b would be written to MSR 0x620. 
+
+    ./wrmsr  -a   0x620 0x1b1b 
+    ./wrmsr  -p0  0x620 0x1b1b 
+
+Set LLC cache ways
+    Cache size is controlled by reducing the number of ways in each set.
+    By default, we have 20 ways in each cache set.
+    The following recipe is used to cut the # of ways down thus reducing the available total cache size.
+
+
+    ./rdmsr -a 0xc8f
+    ./rdmsr -a 0xc90
+
+    将Cache的默认20Way(0xfffff, 20bits setted)修改为15Way(0x7fff, 15bits setted)
+    ./wrmsr -a 0xc8f 0           1. Write 0 to msr 0xc8f on all cores
+    ./wrmsr -a 0xc90 0x7fff      2. Write <X> to msr 0xc90 on all the cores
+
+     a. The default value for <X> is 0xfffff (one bit set for each of the 20 ways of the set).
+        By setting this value lower, you can disable cache ways and reduce the size.
+        For example to reduce the cache size to 1/4 the size, the # of ways should be cut from 20 to 5. 
+        That would be writing 0x1F to msr 0xc90.
+     b. The above write should be done only once and if additional sizes are needed, a reboot is recommended 
+        (where in you will set the new value after the reboot)
+     c. Note that <X> value should have contiguous bits set i.e 0xFF is ok while 0xF0F is not ok
+
+

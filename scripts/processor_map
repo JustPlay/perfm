@@ -2,6 +2,10 @@
 
 set -u
 
-grep 'processor'   /proc/cpuinfo | gawk -F':' '{printf "%-3d", $2}' | tr -d '\n' | gawk '{printf("processor:   %s\n", $0)}' 
-grep 'core id'     /proc/cpuinfo | gawk -F':' '{printf "%-3d", $2}' | tr -d '\n' | gawk '{printf("core id:     %s\n", $0)}' 
-grep 'physical id' /proc/cpuinfo | gawk -F':' '{printf "%-3d", $2}' | tr -d '\n' | gawk '{printf("physical id: %s\n", $0)}' 
+
+declare -r GAWK="/bin/gawk"
+declare -r GREP="/bin/grep"
+
+$GREP 'processor'   /proc/cpuinfo | $GAWK -F':' '{printf "%-3d", $2}' | tr -d '\n' | $GAWK '{printf("processor: %s\n", $0)}' 
+$GREP 'core id'     /proc/cpuinfo | $GAWK -F':' '{printf "%-3d", $2}' | tr -d '\n' | $GAWK '{printf("core id:   %s\n", $0)}' 
+$GREP 'physical id' /proc/cpuinfo | $GAWK -F':' '{printf "%-3d", $2}' | tr -d '\n' | $GAWK '{printf("socket id: %s\n", $0)}' 

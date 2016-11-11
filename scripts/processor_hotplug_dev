@@ -1,15 +1,16 @@
 #!/bin/bash
 #
-# Copyright (c) 2016 Baidu.com, Inc. All Rights Reserved
+#
+# Copyright (c) 2016 JustPlay (hy). All Rights Reserved
 #
 # Author:
-#     houyu02
+#     hy
 #
 # Date:
-#     2016/08/24
+#     2016/10/30
 #
 # Brief:
-#     Xyz abcd.
+#     disable the same number *cores* on each socket.
 #
 # Globals:
 #     CPU_CFG_DIR
@@ -35,7 +36,13 @@
 # set -o xtrace   #
 
 set -u
-set -e
+
+
+declare -r CPU_DEVICES="/sys/devices/system/cpu"
+
+declare -r GREP="/bin/grep"
+declare -r GAWK="/bin/gawk"
+declare -r ECHO="/bin/echo"
 
 
 function pr_msg()
@@ -54,9 +61,9 @@ function pr_err_with_time()
 {
     local msg="$*"
     if [ -w /dev/stderr ]; then
-        echo "[$(date +'%Y-%m-%d-%H:%M:%S')]: $msg" >> /dev/stderr
+        echo "[$(date +'%Y-%m-%d-%H:%M:%S')] $msg" >> /dev/stderr
     else
-        echo "[$(date +'%Y-%m-%d-%H:%M:%S')]: $msg"
+        echo "[$(date +'%Y-%m-%d-%H:%M:%S')] $msg"
     fi
 }
 
@@ -73,138 +80,121 @@ function pr_err()
 function pr_warning()
 {
     pr_err "Warning:"
-    pr_err "    (1) This script is used to disable *CORES* not *THREADS*"
-    pr_err "    (2) This script will disable the same numbers of cores on each socket"
-    pr_err "    (3) *BE CAREFUL* with the [Threads per core] argument"
+    pr_err "    (1) this script is used to disable *CORES* not *THREADS*"
+    pr_err "    (2) this script will disable the same numbers of cores on each socket"
+    pr_err "    (3) *BE CAREFUL* with the [smt/core] argument"
 }
 
-function pr_usage()
+function usage()
 {
+    pr_err "Usage:"
+    pr_err "    $(basename $0) <cores to disable> <smt/core> [sockets (defaults to 2)]"
+    pr_msg ""
     pr_warning
+}
+
+# unplug the *same* number of *core* on each socket
+#
+# $1 - # of cores to unplug
+# $2 - # of smt per core
+# $3 - # of sockets installed on this system
+function processor_hotplug()
+{
+    local nr_smt_core=$2
+    local nr_sys_skts=$3
+
+    if [ $nr_sys_skts -le 0 ] || [ $nr_smt_core -le 0 ] || [ $(($1 % $nr_sys_skts)) -ne 0 ]; then
+        pr_err "invalid argument: the first argument must be an multipler of sockets on this system"
+        exit 1
+    fi
+
+    # thrds installed on this system
+    local nr_sys_thrd=$(ls $CPU_DEVICES | $GREP 'cpu[0-9]\{1,\}' | wc -l)
+
+    # cores installed on this system
+    local nr_sys_core=$(($nr_sys_thrd / $nr_smt_core))
+
+    # cores per socket
+    local nr_core_socket=$(($nr_sys_core / $nr_sys_skts))
+
+    # cores to unplug on each socket
+    local nr_core_unplug=$(($1 / $nr_sys_skts))
+
+    if [ $nr_core_unplug -ge $nr_core_socket ]; then
+        pr_err "invalid argument: the specified core number are too big"
+        exit 1
+    fi
+
+    # first, put all cores/thrds online
+    for ((i = 0; i < $nr_sys_thrd; i++));
+    do
+        if [ -f $CPU_DEVICES/"cpu"$i/online ] && [ -w $CPU_DEVICES/"cpu"$i/online ]; then
+            echo 1 > $CPU_DEVICES/"cpu"$i/online
+        fi
+    done
+
+    pr_msg "system info: total $nr_sys_skts sockets, $nr_sys_core cores, $nr_sys_thrd threads"
+    pr_msg "unplug info: will disable $1 cores, $nr_core_unplug cores/socket"
     pr_msg ""
 
-    pr_err "Usage:"
-    pr_err "    $(basename $0) <cores to disable> <threads per core> [sockets (defaults to 2)]"
+    local nr_cpu_onln=$(cat /proc/cpuinfo | $GREP 'processor' | wc -l)
+    if [ $nr_cpu_onln -ne $nr_sys_thrd ]; then
+        pr_err "fatal error: can *not* put all core/thread online, exiting..."
+        exit 1
+    fi
+
+    ## second, disable the same *cores* on each socket
+    for ((c = 1; c <= $nr_core_unplug; c++)); 
+    do
+        for ((s = 1; s <= $nr_sys_skts; s++));
+        do
+            # the last online core on each socket
+            local core_id=$(($nr_core_socket * $s - $c))
+            
+            # index0, L1 data cache
+            # index1, L1 code cache
+            # index2, L2 unified cache
+            # index3, L3 unified cache
+            local cpu_shared_list=$(cat ${CPU_DEVICES}/cpu${core_id}/cache/index0/shared_cpu_list | tr ',' ' ' )
+            for p in $cpu_shared_list;
+            do
+                echo 0 > $CPU_DEVICES/"cpu"$p/"online"
+            done
+        done
+    done
+
+    ## finally, do some checks
+    nr_cpu_onln=$(cat /proc/cpuinfo | $GREP 'processor' | wc -l)
+    if [ $nr_cpu_onln -ne $(($nr_sys_thrd - $nr_core_unplug * $nr_sys_skts * $nr_smt_core)) ]; then
+        pr_err "fatal error: unplug cores failed, exiting..."
+        exit 1
+    fi
+
+    $GREP 'processor'   /proc/cpuinfo | $GAWK -F':' '{printf "%-3d", $2}' | tr -d '\n' | $GAWK '{printf("processor:   %s\n", $0)}' 
+    $GREP 'core id'     /proc/cpuinfo | $GAWK -F':' '{printf "%-3d", $2}' | tr -d '\n' | $GAWK '{printf("core id:     %s\n", $0)}' 
+    $GREP 'physical id' /proc/cpuinfo | $GAWK -F':' '{printf "%-3d", $2}' | tr -d '\n' | $GAWK '{printf("physical id: %s\n", $0)}' 
 }
 
 
-## Script entry
-CPU_CFG_DIR="/sys/devices/system/cpu"
-NR_THR_CORE=  # Threads per core
-NR_SYS_SKTS=  # Sockets installed on this system
+# entry: exec start from here
+if [ $EUID -ne 0 ]; then
+    pr_err "$(basename $0): you need root privilege to run"
+    exit 1
+fi
 
 case $# in
 3)
-    NR_THR_CORE=$2 # Threads per core
-    NR_SYS_SKTS=$3 # Sockets installed on this system
+    cd $(dirname $0) && processor_hotplug $1 $2 $3
 ;;
 
 2)
-    NR_THR_CORE=$2 # Threads per core
-    NR_SYS_SKTS=2  # Sockets installed on this system (Assumed 2 sockets)
+    cd $(dirname $0) && processor_hotplug $1 $2 2   # default to 2 sockets
 ;;
 
 *)
-    pr_usage
+    usage
     exit 1
 esac
-
-
-if [ $(($1 % $NR_SYS_SKTS)) -ne 0 ] ; then
-    pr_err "Invalid argument: the first argument must be an multipler of sockets on this system"
-    exit 1
-fi
-
-# Thrds installed on this system
-NR_SYS_THRD=$(ls $CPU_CFG_DIR | grep -E 'cpu[[:digit:]]' | wc -l)
-
-# Cores installed on this system
-NR_SYS_CORE=$(($NR_SYS_THRD / $NR_THR_CORE))
-
-# Cores to disable on each socket
-CORES_TO_DISABLE=$(($1 / $NR_SYS_SKTS))
-
-# Cores per socket
-CORES_PER_SOCKET=$(($NR_SYS_CORE / $NR_SYS_SKTS))
-
-#
-# CORES_PER_SOCKET may *NOT* be computed by using the info from /proc/cpuinfo
-#
-
-if [ $CORES_TO_DISABLE -ge $CORES_PER_SOCKET ]; then
-    pr_err "Invalid argument: the specified core number are too big"
-    exit 1
-fi
-
-## First, put all cores/thrds online
-for ((i = 0; i < $NR_SYS_THRD; i++));
-do
-    if [ -f $CPU_CFG_DIR/"cpu"$i/online ] && [ -w $CPU_CFG_DIR/"cpu"$i/online ]; then
-        echo 1 > $CPU_CFG_DIR/"cpu"$i/online
-    fi
-done
-
-
-pr_msg "------------------------------------------------------------"
-pr_msg "Sockets on this system:     $NR_SYS_SKTS"
-pr_msg "Cores   on this system:     $NR_SYS_CORE"
-pr_msg "Thrds   on this system:     $NR_SYS_THRD"
-pr_msg ""
-pr_msg "Cores   on each socket:     $CORES_PER_SOCKET"
-pr_msg "Thrds   on each socket:     $(($CORES_PER_SOCKET * $NR_THR_CORE))"
-pr_msg ""
-pr_msg "Total  *cores* to disable:  $1" 
-pr_msg "Total  *thrds* to disable:  $(($1 * $NR_THR_CORE))"
-pr_msg ""
-pr_msg "Socket *cores* to disable:  $CORES_TO_DISABLE"
-pr_msg "Socket *thrds* to disable:  $(($CORES_TO_DISABLE * $NR_THR_CORE))"
-
-sleep 2
-
-NR_PROCESSOR_ONLINE=$(cat /proc/cpuinfo | grep 'processor' | wc -l)
-if [ $NR_PROCESSOR_ONLINE -ne $NR_SYS_THRD ]; then
-    pr_err "Fault Error, Exiting..."
-    exit 1
-fi
-
-
-## Second, disable the same *cores* on each socket
-if [ $CORES_TO_DISABLE -gt 0 ]; then
-    pr_msg "------------------------------------------------------------"
-fi
-
-for ((c = 1; c <= $CORES_TO_DISABLE; c++)); 
-do
-    for ((s = 1; s <= $NR_SYS_SKTS; s++));
-    do
-        # The last online core on each socket
-        CORE_ID=$(($CORES_PER_SOCKET * $s - $c))
-        
-        # index0, L1 data cache
-        # index1, L1 code cache
-        # index2, L2 unified cache
-        # index3, L3 unified cache
-        SHARED_CPU_LIST=$(cat ${CPU_CFG_DIR}/cpu${CORE_ID}/cache/index0/shared_cpu_list | tr ',' ' ' )
-        
-        for p in $SHARED_CPU_LIST;
-        do
-            pr_msg "--  unplug core:thrd: ${CORE_ID}:${p}"
-            echo 0 > $CPU_CFG_DIR/"cpu"$p/"online"
-        done
-    done
-done
-
-sleep 2
-
-## Final, display current cores/thrds info
-
-NR_PROCESSOR_ONLINE=$(cat /proc/cpuinfo | grep 'processor' | wc -l)
-pr_msg "------------------------------------------------------------"
-pr_msg "Current online processors: $NR_PROCESSOR_ONLINE"
-cat /proc/cpuinfo | grep 'processor' |  tr -d '\t' | gawk -F':' '{printf("--  %s:%s\n", $1, $2)}'
-
-pr_msg "------------------------------------------------------------"
-./processor_map.sh
 
 ## Processors mapping on E5-2640-V4 without HT
 #

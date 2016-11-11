@@ -1,27 +1,40 @@
 /**
- * perfm_analyzer.hpp - TODO
+ * perfm_analyzer.hpp - interface for the perfm analyzer
  *
  */
 #ifndef __PERFM_ANALYZER_HPP__
 #define __PERFM_ANALYZER_HPP__
-
-#include <cstdlib>
-#include <vector>
-#include <string>
-
-#include <sys/types.h>
 
 #include "perfm_util.hpp"
 #include "perfm_event.hpp"
 #include "perfm_evgrp.hpp"
 #include "perfm_option.hpp"
 
+#include <cstdlib>
+#include <vector>
+#include <string>
+#include <map>
+#include <unordered_map>
+#include <utility>
+
 namespace perfm {
 
 class analyzer_t {
 
-    /* TODO */
+public:
+    bool metric_parse(const char *filp);
 
+
+private:
+    using metric_t  = std::string;
+    using formula_t = std::pair<std::string, std::map<std::string, std::string>>;
+    std::unordered_map<metric_t, formula_t> formula_list; /* metric = formula
+                                                           * e.g. 
+                                                           * metric_CPI = a / b
+                                                           * a = CPU_CLK_UNHALTED.THREAD
+                                                           * b = INST_RETIRED.ANY
+                                                           */
+    std::vector<metric_t> metrics_list;
 };
 
 } /* namespace perfm */
