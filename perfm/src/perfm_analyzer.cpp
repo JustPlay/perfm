@@ -3,6 +3,8 @@
 #include <cstdlib>
 
 #include "perfm_xml.hpp"
+#include "perfm_util.hpp"
+#include "perfm_analyzer.hpp"
 
 namespace perfm {
 
@@ -49,7 +51,7 @@ bool analyzer_t::metric_parse(const char *filp)
         std::string metric_name(attr->value(), attr->value_size());
         std::string metric_formula;
 
-        char *entry = "\0";
+        const char *entry = "\0";
 
         // parsing metric formula (non-empty)
         for (xml::xml_node<char> *nod = metric->first_node(); nod; nod = nod->next_sibling()) {

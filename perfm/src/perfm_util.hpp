@@ -27,20 +27,42 @@
 #define PERFM_BUFERR 256
 #define PERFM_BUFSIZ 8192
 
-#define perfm_fatal(fmt, ...) do {                                           \
-    fprintf(stderr, "[%s, %d, %s()]: ", __FILE__, __LINE__, __FUNCTION__);   \
-    fprintf(stderr, fmt, ##__VA_ARGS__);                                     \
-    exit(EXIT_FAILURE);                                                      \
+#define program "perfm"
+
+#ifndef NDEBUG
+
+#define perfm_fatal(fmt, ...) do {                                                      \
+    fprintf(stderr, "[%s, %d, %s()] %s: ", __FILE__, __LINE__, __FUNCTION__, program);  \
+    fprintf(stderr, fmt, ##__VA_ARGS__);                                                \
+    exit(EXIT_FAILURE);                                                                 \
 } while (0)
 
-#define perfm_warn(fmt, ...) do {                                            \
-    fprintf(stderr, "[%s, %d, %s()]: ", __FILE__, __LINE__, __FUNCTION__);   \
-    fprintf(stderr, fmt, ##__VA_ARGS__);                                     \
+#define perfm_warn(fmt, ...) do {                                                       \
+    fprintf(stderr, "[%s, %d, %s()] %s: ", __FILE__, __LINE__, __FUNCTION__, program);  \
+    fprintf(stderr, fmt, ##__VA_ARGS__);                                                \
 } while (0)
 
-#define perfm_info(fmt, ...) do {                                            \
-    fprintf(stdout, fmt, ##__VA_ARGS__);                                     \
+#define perfm_info(fmt, ...) do {                                                       \
+    fprintf(stdout, fmt, ##__VA_ARGS__);                                                \
 } while (0)
+
+#else  /* NDEBUG */
+
+#define perfm_fatal(fmt, ...) do {                                                      \
+    fprintf(stderr, program ": " fmt, ##__VA_ARGS__);                                   \
+    exit(EXIT_FAILURE);                                                                 \
+} while (0)
+
+#define perfm_warn(fmt, ...) do {                                                       \
+    fprintf(stderr, program ": " fmt, ##__VA_ARGS__);                                   \
+    fprintf(stderr, fmt, ##__VA_ARGS__);                                                \
+} while (0)
+
+#define perfm_info(fmt, ...) do {                                                       \
+    fprintf(stdout, fmt, ##__VA_ARGS__);                                                \
+} while (0)
+
+#endif /* NDEBUG */
 
 namespace perfm {
 
@@ -66,8 +88,8 @@ double mround(double number, double multiple);
 /**
  * nanoseconds_sleep - high-resolution sleep without EINTR 
  *
- * @seconds        time to sleep (can be a float value, e.g. 0.01)
- * @use_abs_clock  see time.h for linux
+ * @seconds              time to sleep (can be a float value, e.g. 0.01)
+ * @sleep_with_abs_time  clock_nanosleep(2)
  *
  * Return:
  *     void
@@ -78,7 +100,7 @@ double mround(double number, double multiple);
  * TODO:
  *     sleep with ABS clock has not impled
  */
-void nanoseconds_sleep(double seconds, bool use_abs_clock = false);
+void nanoseconds_sleep(double seconds, bool sleep_with_abs_time = false);
 
 /**
  * str_find - find the target string in the given string array

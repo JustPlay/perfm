@@ -192,7 +192,7 @@ int options_t::parse_cmd_args(int argc, char **argv)
                 this->in_fp   = ::fopen(optarg, "r");
                 if (!this->in_fp) {
                     char *err = strerror_r(errno, NULL, 0);
-                    perfm_fatal("fopen(): %s %s\n", optarg, err);
+                    perfm_fatal("failed to open file %s, %s\n", optarg, err);
                 }
                 break;
 
@@ -201,7 +201,7 @@ int options_t::parse_cmd_args(int argc, char **argv)
                 this->out_fp   = ::fopen(optarg, "w");
                 if (!this->out_fp) {
                     char *err = strerror_r(errno, NULL, 0);
-                    perfm_fatal("fopen(): %s %s\n", optarg, err);
+                    perfm_fatal("failed to open file %s, %s\n", optarg, err);
                 }
                 break;
 

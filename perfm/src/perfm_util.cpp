@@ -22,12 +22,12 @@
 
 namespace perfm {
 
-void nanoseconds_sleep(double seconds, bool use_abs_clock)
+void nanoseconds_sleep(double seconds, bool sleep_with_abs_time)
 {
     long int sec  = static_cast<long int>(seconds);
     long int nsec = static_cast<long int>((seconds - sec) * 1000000000);
 
-    if (!use_abs_clock) {  /* relative time sleep */
+    if (!sleep_with_abs_time) {  /* relative time sleep */
         struct timespec tv[2] = {
             {
                 .tv_sec  = sec,
@@ -42,18 +42,36 @@ void nanoseconds_sleep(double seconds, bool use_abs_clock)
 
         int req = 0;
         int rem = 1;
-        while (-1 == ::nanosleep(&tv[req], &tv[rem])) {
+        while (-1 == ::clock_nanosleep(CLOCK_MONOTONIC, 0, &tv[req], &tv[rem])) {
             if (EINTR == errno) {
                 req ^= rem; rem ^= req; req ^= rem;
                 continue;
             } else {
-                perfm_warn("nanosleep() failed, remaining %ld(ns)\n", tv[rem].tv_sec * 1000000000 + tv[rem].tv_nsec);
-                break;
+                perfm_warn("sleep failed, remaining %ld(ns)\n", tv[rem].tv_sec * 1000000000 + tv[rem].tv_nsec);
+                return;
             }
         }
 
     } else {  /* absolute time sleep */
-        perfm_fatal("%s\n", "not impled for now");
+        struct timespec req;
+        struct timespec rem;
+
+        if (::clock_gettime(CLOCK_MONOTONIC, &req) != 0) {
+            perfm_warn("failed to get curent time, sleep failed\n");
+            return;
+        }
+
+        req.tv_sec  += sec;
+        req.tv_nsec += nsec;
+
+        while (-1 == ::clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &req, &rem)) {
+            if (EINTR == errno) {
+                continue;
+            } else {
+                perfm_warn("sleep failed, remaining %ld(ns)\n", rem.tv_sec * 1000000000 + rem.tv_nsec);
+                return;
+            }
+        }
     }
 }
 
@@ -154,7 +172,7 @@ bool write_file(const char *filp, void *buf, size_t sz)
     int fd = ::open(filp, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH); 
     if (fd == -1) {
         char *err = strerror_r(errno, NULL, 0);
-        perfm_warn("open() %s %s\n", filp, err);
+        perfm_warn("failed to open %s, %s\n", filp, err);
         return false;
     }
 
@@ -168,7 +186,7 @@ bool write_file(const char *filp, void *buf, size_t sz)
 
         if (errno != EINTR) {
             char *err = strerror_r(errno, NULL, 0);
-            perfm_warn("write() %s %s\n", filp, err);
+            perfm_warn("failed to write %s, %s\n", filp, err);
             ::close(fd);
             return false;
         }
@@ -186,21 +204,21 @@ void *read_file(const char *filp, size_t *sz)
     int fd = ::open(filp, O_RDONLY);
     if (fd == -1) {
         char *err = strerror_r(errno, NULL, 0);
-        perfm_warn("open() %s %s\n", filp, err);
+        perfm_warn("failed to open %s, %s\n", filp, err);
         return NULL;
     }
 
     struct stat sb;
     if (fstat(fd, &sb) != 0) {
         char *err = strerror_r(errno, NULL, 0);
-        perfm_warn("stat() %s %s\n", filp, err);
+        perfm_warn("failed to get the attribute for %s, %s\n", filp, err);
         close(fd);
         return NULL;
     }
 
     void *res = calloc(sb.st_size / sizeof(uint64_t) + 1, sizeof(uint64_t));
     if (!res) {
-        perfm_warn("calloc() failed\n");
+        perfm_warn("failed to alloc memory\n");
         close(fd);
         return NULL;
     }
@@ -220,7 +238,7 @@ void *read_file(const char *filp, size_t *sz)
 
         if (errno != EINTR) {
             char *err = strerror_r(errno, NULL, 0);
-            perfm_warn("read() %s %s\n", filp, err);
+            perfm_warn("failed to read %s, %s\n", filp, err);
             close(fd);
             free(res);
             return NULL;
