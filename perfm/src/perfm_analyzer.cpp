@@ -35,13 +35,14 @@ bool analyzer_t::metric_parse(const char *filp)
     }
 
     std::map<std::string, std::string> formula_alias;
-    xml::xml_node<char> *metric = perfm->first_node();
 
+    xml::xml_node<char> *metric = perfm->first_node();
     while (metric) {
         xml::xml_attribute<char> *name = metric->first_attribute("name");
 
         // parsing metric name (uniq & non-empty)
         if (!name || !name->value_size()) {
+            perfm_warn("metric's name is empty, ignored\n");
             metric = metric->next_sibling();
             continue;
         }
@@ -53,8 +54,8 @@ bool analyzer_t::metric_parse(const char *filp)
 
         // parsing metric formula (non-empty)
         for (xml::xml_node<char> *node = metric->first_node(); node; node = node->next_sibling()) {
-            size_t sz_nam = node->name_size();
-            size_t sz_val = node->value_size();
+            const size_t sz_nam = node->name_size();
+            const size_t sz_val = node->value_size();
 
             if (!sz_nam || !sz_val) {
                 perfm_warn("invalid metric event/constant/formula/...\n");
@@ -64,7 +65,7 @@ bool analyzer_t::metric_parse(const char *filp)
             const std::string nod_nam(node->name(),  sz_nam);
             const std::string nod_val(node->value(), sz_val);
 
-            if ("event" == nod_nam) {
+            if ("event" == nod_nam || "constant" == nod_nam) {
                 xml::xml_attribute<char> *attr = node->first_attribute("alias"); 
                 if (attr && attr->value_size()) {
                     std::string att_val(attr->value(), attr->value_size());
@@ -73,15 +74,6 @@ bool analyzer_t::metric_parse(const char *filp)
                 continue;
             }
             
-            if ("constant" == nod_nam) {
-                xml::xml_attribute<char> *attr = node->first_attribute("alias"); 
-                if (attr && attr->value_size()) {
-                    std::string att_val(attr->value(), attr->value_size());
-                    formula_alias.insert({att_val, nod_val});
-                }
-                continue;
-            }
-           
             if ("formula" == nod_nam) {
                 metric_formula = nod_val;
                 break;
