@@ -12,6 +12,7 @@
 
 #include <vector>
 #include <string>
+#include <functional>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -87,20 +88,41 @@ double mround(double number, double multiple)
     return std::round(number / multiple) * multiple;
 }
 
-std::string str_trim(const std::string &str)
+std::string str_trim(const std::string &str, const char *charlist)
 {
     if (str.empty()) {
         return str;
     }
 
-    std::string::size_type s = 0, e = str.size() - 1;
+    bool chmap[256] = { false };
+    auto chlen = charlist ? std::strlen(charlist) : 0;
 
-    while (s <= e && std::isspace(str[s])) {
-        ++s;
+    for (int i = 0; i < chlen; ++i) {
+        chmap[charlist[i]] = true;
     }
 
-    while (e >= s && std::isspace(str[e])) {
-        --e;
+    auto need_trim = [&chmap] (int ch) -> bool {
+        return chmap[ch];
+    };
+
+    std::string::size_type s = 0, e = str.size() - 1;
+
+    if (!charlist) {
+        while (s <= e && std::isspace(str[s])) {
+            ++s;
+        }
+
+        while (e >= s && std::isspace(str[e])) {
+            --e;
+        }
+    } else {
+        while (s <= e && need_trim(str[s])) {
+            ++s;
+        }
+
+        while (e >= s && need_trim(str[e])) {
+            --e;
+        }
     }
 
     if (s <= e) {

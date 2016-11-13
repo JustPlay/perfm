@@ -138,7 +138,8 @@ std::vector<std::string> str_split(const std::string &str, const std::string &de
 /**
  * str_trim - remove space in both left and right of the given string
  *
- * @str  the string to trim
+ * @str       the string to trim
+ * @charlist  the characters to trim
  *
  * Return:
  *     the trimed version (copy) of @str
@@ -146,7 +147,7 @@ std::vector<std::string> str_split(const std::string &str, const std::string &de
  * Description:
  *
  */
-std::string str_trim(const std::string &str);
+std::string str_trim(const std::string &str, const char *charlist = NULL);
 
 /**
  * save_file - save content specified by @buf & @sz to the file specified by @filp

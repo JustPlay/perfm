@@ -1,10 +1,10 @@
 
+#include "perfm_util.hpp"
+#include "perfm_xml.hpp"
+#include "perfm_analyzer.hpp"
+
 #include <cstdio>
 #include <cstdlib>
-
-#include "perfm_xml.hpp"
-#include "perfm_util.hpp"
-#include "perfm_analyzer.hpp"
 
 namespace perfm {
 
@@ -34,57 +34,63 @@ bool analyzer_t::metric_parse(const char *filp)
         return false;
     }
 
-    std::map<std::string, std::string> alias;
+    std::map<std::string, std::string> formula_alias;
     xml::xml_node<char> *metric = perfm->first_node();
 
     while (metric) {
-        xml::xml_attribute<char> *attr = metric->first_attribute("name");
+        xml::xml_attribute<char> *name = metric->first_attribute("name");
 
         // parsing metric name (uniq & non-empty)
-        if (!attr || !attr->value_size()) {
+        if (!name || !name->value_size()) {
             metric = metric->next_sibling();
             continue;
         }
 
-        alias.clear();
+        formula_alias.clear();
 
-        std::string metric_name(attr->value(), attr->value_size());
+        std::string metric_name(name->value(), name->value_size());
         std::string metric_formula;
 
-        const char *entry = "\0";
-
         // parsing metric formula (non-empty)
-        for (xml::xml_node<char> *nod = metric->first_node(); nod; nod = nod->next_sibling()) {
-            size_t sz_nam = nod->name_size();
+        for (xml::xml_node<char> *node = metric->first_node(); node; node = node->next_sibling()) {
+            size_t sz_nam = node->name_size();
+            size_t sz_val = node->value_size();
 
-            entry = "event";
-            if (!std::strncmp(entry, nod->name(), sz_nam)) {
-                xml::xml_attribute<char> *att = nod->first_attribute("alias"); 
-                if (att && att->value_size() && nod->value_size()) {
-                    alias.insert({att->value(), nod->value()});
+            if (!sz_nam || !sz_val) {
+                perfm_warn("invalid metric event/constant/formula/...\n");
+                continue;
+            }
+
+            const std::string nod_nam(node->name(),  sz_nam);
+            const std::string nod_val(node->value(), sz_val);
+
+            if ("event" == nod_nam) {
+                xml::xml_attribute<char> *attr = node->first_attribute("alias"); 
+                if (attr && attr->value_size()) {
+                    std::string att_val(attr->value(), attr->value_size());
+                    formula_alias.insert({att_val, nod_val});
                 }
                 continue;
             }
             
-            entry = "constant";
-            if (!std::strncmp(entry, nod->name(), sz_nam)) {
-                xml::xml_attribute<char> *att = nod->first_attribute("alias"); 
-                if (att && att->value_size() && nod->value_size()) {
-                    alias.insert({att->value(), nod->value()});
+            if ("constant" == nod_nam) {
+                xml::xml_attribute<char> *attr = node->first_attribute("alias"); 
+                if (attr && attr->value_size()) {
+                    std::string att_val(attr->value(), attr->value_size());
+                    formula_alias.insert({att_val, nod_val});
                 }
                 continue;
             }
            
-            entry = "formula";
-            if (!std::strncmp(entry, nod->name(), sz_nam)) {
-                // TODO
-                continue;
-            } 
+            if ("formula" == nod_nam) {
+                metric_formula = nod_val;
+                break;
+            }
         }
 
         if (!metric_name.empty() && !metric_formula.empty()) {
             this->metrics_list.push_back(metric_name);
-            this->formula_list.insert({metric_name, {metric_formula, alias}});
+            this->formula_list.insert({metric_name, {metric_formula, formula_alias}});
         }
         
         metric = metric->next_sibling();

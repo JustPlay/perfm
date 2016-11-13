@@ -26,15 +26,15 @@ public:
 
 
 private:
-    using metric_t  = std::string;
-    using formula_t = std::pair<std::string, std::map<std::string, std::string>>;
-    std::unordered_map<metric_t, formula_t> formula_list; /* metric = formula
-                                                           * e.g. 
-                                                           * metric_CPI = a / b
-                                                           * a = CPU_CLK_UNHALTED.THREAD
-                                                           * b = INST_RETIRED.ANY
-                                                           */
-    std::vector<metric_t> metrics_list;
+    using metric_nam_t = std::string;
+    using me_formula_t = std::pair<std::string, std::map<std::string, std::string>>;
+    std::unordered_map<metric_nam_t, me_formula_t> formula_list; /* metric = formula
+                                                                  * e.g. 
+                                                                  *     metric_CPI = a / b
+                                                                  *     a = CPU_CLK_UNHALTED.THREAD
+                                                                  *     b = INST_RETIRED.ANY
+                                                                  */
+    std::vector<metric_nam_t> metrics_list;
 };
 
 } /* namespace perfm */
