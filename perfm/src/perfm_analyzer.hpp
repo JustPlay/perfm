@@ -16,14 +16,25 @@
 #include <map>
 #include <unordered_map>
 #include <utility>
+#include <tuple>
 
 namespace perfm {
 
+namespace xml = rapidxml;
+
 class analyzer_t {
+    using pmu_data_t = std::tuple<uint64_t>;
 
 public:
     bool metric_parse(const char *filp);
 
+    void metric_eval();
+    void metric_eval(const std::string &metric);
+
+private:
+    bool metric_parse(xml::xml_node<char> *metric);
+
+    std::string formula_infix2postfix(const std::string &formula_infix) const;
 
 private:
     using metric_nam_t = std::string;
@@ -35,6 +46,8 @@ private:
                                                                   *     b = INST_RETIRED.ANY
                                                                   */
     std::vector<metric_nam_t> metrics_list;
+
+    std::unordered_map<std::string, pmu_data_t> metrics_data;
 };
 
 } /* namespace perfm */
