@@ -55,7 +55,6 @@
 
 #define perfm_warn(fmt, ...) do {                                                       \
     fprintf(stderr, program ": " fmt, ##__VA_ARGS__);                                   \
-    fprintf(stderr, fmt, ##__VA_ARGS__);                                                \
 } while (0)
 
 #define perfm_info(fmt, ...) do {                                                       \

@@ -85,7 +85,7 @@ int event_t::ev_open(const std::string &evn, pid_t pid, int grp, int cpu, unsign
 
 int event_t::ev_open()
 {
-    this->fd = perf_event_open(&this->pea, this->pid, this->cpu, this->grp, this->flg); 
+    this->fd = perf_event_open(&this->pea, this->pid, this->cpu, this->grp, this->flg);
 
     if (this->fd == -1) {
         perfm_warn("perf_event_open() failed on event: %s, process: %d, cpu: %d\n", this->nam.c_str(), this->pid, this->cpu);
@@ -116,7 +116,7 @@ bool event_t::ev_read()
     this->pmu_prev[1] = this->pmu_curr[1];
     this->pmu_prev[2] = this->pmu_curr[2];
 
-    ssize_t ret = ::read(this->fd, this->pmu_curr, sizeof(this->pmu_curr)); 
+    ssize_t ret = ::read(this->fd, this->pmu_curr, sizeof(this->pmu_curr));
     if (ret != sizeof(this->pmu_curr)) {
         char *err = strerror_r(errno, NULL, 0);
         perfm_warn("read PMU counters failed, %s\n", err);
@@ -177,7 +177,7 @@ uint64_t event_t::ev_scale() const
 
 void event_t::ev_print() const
 {
-    FILE *fp = perfm_options.out_fp;
+    FILE *fp = perfm_options.fp_out;
     if (!fp) {
         fp = stdout;
     }
@@ -189,7 +189,7 @@ void event_t::ev_print() const
 
 void event_t::ev_prcfg() const
 {
-    /* TODO */    
+    /* TODO */
 }
 
 void ev2perf(const std::string &evn, FILE *fp)
@@ -214,7 +214,7 @@ void ev2perf(const std::string &evn, FILE *fp)
                 "      .config                  : %zx\n"
                 "  perf.disabled                : %s\n"
                 "      .inherit                 : %s\n"
-                "      .pinned                  : %s\n" 
+                "      .pinned                  : %s\n"
                 "      .exclusive               : %s\n"
                 "      .exclude_user            : %s\n"
                 "      .exclude_kernel          : %s\n"

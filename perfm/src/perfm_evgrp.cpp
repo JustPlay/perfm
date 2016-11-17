@@ -18,7 +18,7 @@ namespace perfm {
 
 int evgrp_t::gr_open(const std::string &ev_list, pid_t pid, int cpu, const std::string &plm)
 {
-    auto ev_argv = str_split(ev_list, ",", options_t::nr_event_supp()); 
+    auto ev_argv = str_split(ev_list, ",", options_t::sz_group_max()); 
     return this->gr_open(ev_argv, pid, cpu, plm);
 }
 
@@ -60,7 +60,7 @@ int evgrp_t::gr_open(const std::vector<std::string> &ev_argv, pid_t pid, int cpu
 
         pfm_err_t ret = pfm_get_os_event_encoding(ev_argv[i].c_str(), this->plm, PFM_OS_PERF_EVENT, &arg);
         if (ret != PFM_SUCCESS) {
-            if (perfm_options.ignore_error) {
+            if (perfm_options.skip_err) {
                 perfm_warn("invalid event (ignored), %s\n", ev_argv[i].c_str());
                 continue;
             } else {
@@ -77,8 +77,8 @@ int evgrp_t::gr_open(const std::vector<std::string> &ev_argv, pid_t pid, int cpu
         ev_list.push_back(ev);
     }
 
-    // Call perf_event_open() for each event in this group
-    for (int i = 0; i < this->gr_size(); ++i) {
+    // call perf_event_open() for each event in this group
+    for (size_t i = 0; i < this->gr_size(); ++i) {
         ev_list[i]->pea.disabled = i == this->grp ? 1 : 0;    /* disabled = 1 for group leader; disabled = 0 for others */
         if (perfm_options.rdfmt_timeing) {
             ev_list[i]->pea.read_format |= PEV_RDFMT_TIMEING; /* include timing information for scaling */
@@ -143,7 +143,7 @@ size_t evgrp_t::gr_read()
 
 void evgrp_t::gr_print() const
 {
-    FILE *fp = perfm_options.out_fp;
+    FILE *fp = perfm_options.fp_out;
     if (!fp) {
         fp = stdout;
     }

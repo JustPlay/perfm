@@ -35,7 +35,7 @@ bool pmu_is_available(pfm_pmu_t pmu)
     return ret == PFM_SUCCESS ? pinfo.is_present : 0;
 }
 
-void pr_pmu_list(bool pr_all)
+void pmu_list(bool pr_all)
 {
     FILE *fp = stdout;
 
@@ -49,13 +49,13 @@ void pr_pmu_list(bool pr_all)
         int nr_supported_pmus   = 0;
         int nr_supported_events = 0;
 
-        // Supported PMUs
+        // supported PMUs
         fprintf(fp, "-------------------------------------------------------\n");
         fprintf(fp, "- PMU models supported by perfm (powered by libpfm4): -\n");
         fprintf(fp, "-------------------------------------------------------\n");
 
         pfm_for_all_pmus(i) {
-            ret = pfm_get_pmu_info(static_cast<pfm_pmu_t>(i), &pinfo);    
+            ret = pfm_get_pmu_info(static_cast<pfm_pmu_t>(i), &pinfo);
             if (ret != PFM_SUCCESS) {
                 continue;
             }
@@ -75,7 +75,7 @@ void pr_pmu_list(bool pr_all)
     }
 
 
-    // Available PMUs
+    // available PMUs
     if (pr_all) {
         fprintf(fp, "\n");
     }

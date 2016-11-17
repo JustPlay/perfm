@@ -17,13 +17,13 @@ namespace perfm {
 
 options_t perfm_options; /* the global configure options */
 
-const char *perfm_comm_switch[PERFM_RUNNING_MODE_MAX] = {
+const char *perfm_switch_str[PERFM_MAX] = {
     "monitor",
     "sample",
     "analyze",
 };
 
-void usage(const char *cmd) 
+void usage(const char *cmd)
 {
     fprintf(stderr,
             "perfm - A performance monitor, sampler, analyzer (powered by libpfm4 & perf_event).\n\n"
@@ -34,7 +34,9 @@ void usage(const char *cmd)
     fprintf(stderr,
             "General Options:\n"
             "  -h, --help                        display this help information\n"
+            "  -v, --verbose                     run perfm in verbose mode\n"
             "  -V, --version                     display version information\n"
+            " --list-pmu                         list online PMUs\n"
             "\n"
            );
 
@@ -98,63 +100,75 @@ bool options_t::parse_evcfg_file()
     return true;
 }
 
-int options_t::parse_cmd_args(int argc, char **argv) 
+void options_t::parse(int argc, char **argv) 
 {
     char ch;
-    int  perfm_comm_switch_id = 0;  /* whether the 'command switch option' was provided by the user,
-                                     * - if provided correctly, a positive value which show the position in argv
-                                     * - else, zero
-                                     */
+    int  perfm_switch_id = 0;  /* whether the "command switch option" was provided by the user,
+                                * - if provided correctly, a positive value which show it's position in argv
+                                * - else, zero
+                                */
 
-    { /* Step 1. Parse Command Switch */
-        for (int m = 0; m < PERFM_RUNNING_MODE_MAX; ++m) {
-            int p = str_find(argv, argc, perfm_comm_switch[m]);
-            if (p != -1) {
-                perfm_options.running_mode = static_cast<perfm_running_mode_t>(m);
-                perfm_comm_switch_id       = p;
+    { /* step 1. parse command switch */
+        for (int s = 0; s < PERFM_MAX; ++s) {
+            int id = str_find(argv, argc, perfm_switch_str[s]);
+            if (id != -1) {
+                this->perfm_switch = static_cast<perfm_switch_t>(s);
+                perfm_switch_id    = id;
                 break;
             }
         }
     }
 
-    { /* Step 2. Parse General Options */
-        const char *general_opts = "hV?";
+    { /* step 2. parse general options */
+        const char *opts = "hvV?";
 
-        const struct option general_longopts[] = {
-            {"help",    no_argument, NULL, 'h'},
-            {"version", no_argument, NULL, 'V'},
-            {NULL,      no_argument, NULL,  0 },
+        const struct option longopts[] = {
+            {"help",     no_argument, NULL, 'h'},
+            {"verbose",  no_argument, NULL, 'v'},
+            {"version",  no_argument, NULL, 'V'},
+            {"list-pmu", no_argument, NULL,  1 },
+            { NULL,      no_argument, NULL,  0 },
         };
 
-        while ((ch = getopt_long(perfm_comm_switch_id ? perfm_comm_switch_id : argc, argv, general_opts, general_longopts, NULL)) != -1) {
+        while ((ch = getopt_long(perfm_switch_id ? perfm_switch_id : argc, argv, opts, longopts, NULL)) != -1) {
             switch(ch) {
             case '?':
             case 'h':
-                return COMM_OPTIONS_USAGE;
+                this->usage = true;
+                break;
+
+            case 'v':
+                this->verbose = true;
+                break;
 
             case 'V':
-                return COMM_OPTIONS_VERSION;
+                this->version = true;
+                break;
+
+            case  1:
+                this->list_pmu = true;
+                break;
 
             default:
-                return COMM_OPTIONS_ERROR;
+                this->error = true;
             }
         }
 
-        if (!perfm_comm_switch_id) {
-            return COMM_OPTIONS_USAGE;
+        if (this->usage || this->version || this->error) {
+            return;
         }
     }
 
-    /* Step 3. Parse Command-line Options */
-    if (perfm_comm_switch_id == argc - 1) {
-        return COMM_OPTIONS_ERROR;
+    /* step 3. parse command-line options */
+    if (perfm_switch_id == argc - 1) {
+        this->error = true;
+        return;
     }
 
-    if (perfm_options.running_mode == PERFM_RUNNING_MODE_MONITOR) {
-        // Case 1. runnning_mode: monitor
+    if (this->perfm_switch == PERFM_MONITOR) {
+        // case 1. runnning_mode: monitor
 
-        const struct option comm_longopts[] = {
-            {"verbose",       no_argument,       NULL, 'v'},
+        const struct option longopts[] = {
             {"loop",          required_argument, NULL, 'l'},
             {"time",          required_argument, NULL, 't'},
             {"event",         required_argument, NULL, 'e'},
@@ -164,19 +178,15 @@ int options_t::parse_cmd_args(int argc, char **argv)
             {"plm",           required_argument, NULL, 'm'},
             {"pid",           required_argument, NULL, 'p'},
             {"incl-children", no_argument,       NULL,  1 },
-            {NULL,            no_argument,       NULL,  0 },
+            { NULL,           no_argument,       NULL,  0 },
         };
 
-        const char *comm_opts= "vl:t:e:i:o:c:m:p:";
+        const char *opts= "l:t:e:i:o:c:m:p:";
 
-        while ((ch = getopt_long(argc - perfm_comm_switch_id, argv + perfm_comm_switch_id, comm_opts, comm_longopts, NULL)) != -1) {
+        while ((ch = getopt_long(argc - perfm_switch_id, argv + perfm_switch_id, opts, longopts, NULL)) != -1) {
             switch(ch) {
-            case 'v':
-                this->verbose = 1;
-                break;
-
             case 'l':
-                this->loops = std::atoi(optarg);
+                this->loops = std::stoi(optarg);
                 break;
 
             case 't':
@@ -184,29 +194,27 @@ int options_t::parse_cmd_args(int argc, char **argv)
                 break;
 
             case 'e':
-                this->ev_groups = str_split(optarg, ";", options_t::nr_group_supp());
+                this->ev_groups = str_split(optarg, ";", options_t::nr_group_max());
                 break;
 
             case 'i':
                 this->in_file = std::move(std::string(optarg));
-                this->in_fp   = ::fopen(optarg, "r");
-                if (!this->in_fp) {
-                    char *err = strerror_r(errno, NULL, 0);
-                    perfm_fatal("failed to open file %s, %s\n", optarg, err);
+                this->fp_in   = ::fopen(optarg, "r");
+                if (!this->fp_in) {
+                    perfm_fatal("failed to open file %s, %s\n", optarg, strerror_r(errno, NULL, 0));
                 }
                 break;
 
             case 'o':
                 this->out_file = std::move(std::string(optarg));
-                this->out_fp   = ::fopen(optarg, "w");
-                if (!this->out_fp) {
-                    char *err = strerror_r(errno, NULL, 0);
-                    perfm_fatal("failed to open file %s, %s\n", optarg, err);
+                this->fp_out   = ::fopen(optarg, "w");
+                if (!this->fp_out) {
+                    perfm_fatal("failed to open file %s, %s\n", optarg, strerror_r(errno, NULL, 0));
                 }
                 break;
 
             case 'c':
-                this->cpu = std::atoi(optarg);
+                this->cpu = std::stoi(optarg);
                 break;
 
             case 'm':
@@ -214,7 +222,7 @@ int options_t::parse_cmd_args(int argc, char **argv)
              break;
 
             case 'p':
-                this->pid = std::atoi(optarg);
+                this->pid = std::stoi(optarg);
                 break;
 
             case 1:
@@ -222,7 +230,7 @@ int options_t::parse_cmd_args(int argc, char **argv)
                 break;
 
             default:
-                return COMM_OPTIONS_ERROR;
+                this->error = true;
             }
 
             if (this->interval < 0.01) {
@@ -234,44 +242,46 @@ int options_t::parse_cmd_args(int argc, char **argv)
             }
         }
 
+        if (this->error) {
+            return;
+        }
+
         if (this->in_file != "") {
             if (!parse_evcfg_file()) {
                 perfm_fatal("event parsing (%s) error, exit...\n", this->in_file.c_str());
             } 
         }
     
-    } else if (perfm_options.running_mode == PERFM_RUNNING_MODE_SAMPLE) {
+    } else if (this->perfm_switch == PERFM_SAMPLE) {
         perfm_fatal("%s\n", "TODO");    
-    } else if (perfm_options.running_mode == PERFM_RUNNING_MODE_ANALYZE) {
+    } else if (this->perfm_switch == PERFM_ANALYZE) {
         perfm_fatal("%s\n", "TODO");    
     } else {
         perfm_fatal("%s\n", "this should never happen!");    
     }
-
-    return COMM_OPTIONS_VALID;
 }
 
-void options_t::pr_options() const
+void options_t::print() const
 {
     FILE *fp = stdout;
-    int rmod = this->running_mode;
+    int rmod = this->perfm_switch;
 
     fprintf(fp, "-------------------------------------------------------\n");
-    fprintf(fp, "- perfm will run in mode: %-24s    -\n", perfm_comm_switch[rmod]);
+    fprintf(fp, "- perfm will run in mode: %-24s    -\n", perfm_switch_str[rmod]);
     fprintf(fp, "-------------------------------------------------------\n");
     fprintf(fp, "- time that an event set is monitored   : %.2f(s)\n", this->interval);
     fprintf(fp, "- # of times each event set is monitored: %d\n",      this->loops);
     fprintf(fp, "- process/thread to monitor (pid/tid)   : %s\n",      this->pid == -1 ? "any" : std::to_string(this->pid).c_str());
     fprintf(fp, "- processor to monitor                  : %s\n",      this->cpu == -1 ? "any" : std::to_string(this->cpu).c_str());
-    fprintf(fp, "- event config file                     : %s\n",      this->in_fp  ? this->in_file.c_str() : "none");      
-    fprintf(fp, "- output result file                    : %s\n",      this->out_fp ? this->out_file.c_str() : "stdout");      
+    fprintf(fp, "- event config file                     : %s\n",      this->fp_in  ? this->in_file.c_str() : "none");
+    fprintf(fp, "- output result file                    : %s\n",      this->fp_out ? this->out_file.c_str() : "stdout");
     fprintf(fp, "- privilege level mask                  : %s\n",      this->plm.c_str());
-    fprintf(fp, "- # of event groups to monitor          : %lu\n",     this->nr_groups());
+    fprintf(fp, "- # of event groups to monitor          : %lu\n",     this->nr_group());
     fprintf(fp, "-------------------------------------------------------\n");
 
     int i = 0;
     for (const auto &grp : ev_groups) {
-        auto ev_list = str_split(grp, ",", options_t::nr_event_supp()); 
+        auto ev_list = str_split(grp, ",", options_t::sz_group_max()); 
         
         fprintf(fp, "- Event Group #%d (%lu events)\n", i++, ev_list.size());
         for (const auto &ev : ev_list) {
@@ -281,7 +291,7 @@ void options_t::pr_options() const
         fprintf(fp, "\n");
     }
 
-    if (!this->nr_groups()) {
+    if (!this->nr_group()) {
         fprintf(fp,
                 "\n"
                 "-------------------------------------------------------\n"

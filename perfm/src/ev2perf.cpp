@@ -40,12 +40,12 @@ int main(int argc, char **argv)
 
     pfm_err_t ret = pfm_initialize();
     if (ret != PFM_SUCCESS) {
-        perfm_fatal("pfm_initialize() failed, %s\n", pfm_strerror(ret)); 
+        perfm_fatal("pfm_initialize() failed, %s\n", pfm_strerror(ret));
     }
 
     std::string evn;
     while (get_event(std::cin, evn)) {
-        perfm::ev2perf(evn);            
+        perfm::ev2perf(evn);
     }
 
     pfm_terminate();

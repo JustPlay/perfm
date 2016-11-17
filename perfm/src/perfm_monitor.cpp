@@ -17,49 +17,50 @@
 
 namespace perfm {
 
+inline bool pid_exist(int pid)
+{
+    return ::access(std::string("/proc/" + std::to_string(pid) + "/status").c_str(), F_OK) == 0 ? true : false;
+}
+
+inline bool cpu_exist(int cpu)
+{
+    bool is_onln = true;
+
+    int nr_cpu = sysconf(_SC_NPROCESSORS_ONLN);
+
+    // when cpuX is online, '/sys/devices/system/cpu/cpuX/cache' EXISTS on x86 linux, otherwise NOT
+    if (cpu >= nr_cpu || ::access(std::string("/sys/devices/system/cpu/cpu" + std::to_string(cpu) + "/cache").c_str(), F_OK) != 0) {
+        is_onln = false;
+    }
+
+    return is_onln; 
+}
+
 void monitor_t::open()
 {
-    /* Check the existence of the target process */
     int pid = perfm_options.pid;
-    if (pid != -1) {
-        if (access(std::string("/proc/" + std::to_string(pid) + "/status").c_str(), F_OK) != 0) {
-            fprintf(stderr, "The target process [%d] does NOT existed, Exiting...\n", pid);        
-            exit(EXIT_FAILURE);
-        }
+    if (pid != -1 && !pid_exist(pid)) {
+        perfm_fatal("target process [%d] does NOT existed, exiting...\n", pid);
     }
 
-    /* Check the existence of the target processor */
     int cpu = perfm_options.cpu;
-    if (cpu != -1) {
-        bool is_onln = true;
-
-        int nr_cpu_onln = sysconf(_SC_NPROCESSORS_ONLN); 
-        /*
-         * when cpuX is online, '/sys/devices/system/cpu/cpuX/cache' EXISTS on x86 linux, otherwise NOT
-         */
-        if (cpu >= nr_cpu_onln || access(std::string("/sys/devices/system/cpu/cpu" + std::to_string(cpu) + "/cache").c_str(), F_OK) != 0) {
-            is_onln = false;
-        } 
-        
-        if (!is_onln) {
-            fprintf(stderr, "The target CPU [%d] does NOT existed or online, Exiting...\n", cpu);        
-            exit(EXIT_FAILURE);
-        }
+    if (cpu != -1 && !cpu_exist(cpu)) {
+        perfm_fatal("target cpu [%d] does NOT existed or online, exiting...\n", cpu);
     }
 
-    /* Permissions checking */
+    /* permissions checking */
     /* TODO */
 
-    /* Open event groups */
-    auto ev_groups = perfm_options.get_event_groups(); 
+    /* open event groups */
+    const auto &ev_group = perfm_options.get_event_group();
     
-    for (const auto &ev_list : ev_groups) {
+    for (const auto &ev_list : ev_group) {
         evgrp_t::ptr_t grp = evgrp_t::creat();
-        grp->gr_open(ev_list, perfm_options.pid, perfm_options.cpu, perfm_options.plm); 
-        grp_list.push_back(grp);                
+        grp->gr_open(ev_list, perfm_options.pid, perfm_options.cpu, perfm_options.plm);
+        grp_list.push_back(grp);
     }
 
-    assert(grp_list.size() == ev_groups.size());
+    assert(grp_list.size() == ev_group.size());
 }
 
 void monitor_t::close()
@@ -71,7 +72,7 @@ void monitor_t::close()
 
 void monitor_t::start() 
 {
-    rr();
+    loop();
 }
 
 void monitor_t::stop() 
@@ -79,32 +80,38 @@ void monitor_t::stop()
     /* TODO */
 }
 
-int monitor_t::rr()
+void monitor_t::rr()
 {
-    int iter = 0;
+    size_t id = 0;
+    size_t nr = grp_list.size();
 
-    while (iter < perfm_options.loops) {
-       
-        assert(grp_list.size());
-        for (size_t g = 0; g < grp_list.size(); ++g) {
-            // - 1. start the monitor
-            grp_list[g]->gr_start();
+    while (id++ < nr) {
+        // 1. start the monitor
+        grp_list[id]->gr_start();
 
-            // - 2. monitor for the specified time interval
-            nanoseconds_sleep(perfm_options.interval);
-            
-            // - 3. stop the monitor
-            grp_list[g]->gr_stop();
+        // 2. monitor for the specified time interval
+        nanoseconds_sleep(perfm_options.interval);
+        
+        // 3. stop the monitor
+        grp_list[id]->gr_stop();
 
-            // - 4. read/print the PMU values
-            grp_list[g]->gr_read();
-            grp_list[g]->gr_print();
-        }
- 
-        ++iter;
+        // 4. read/print the PMU values
+        grp_list[id]->gr_read();
+        grp_list[id]->gr_print();
+    }
+}
+
+int monitor_t::loop()
+{
+    assert(grp_list.size());
+
+    int r = perfm_options.loops;
+
+    while (r--) {
+        rr();
     }
 
-    return iter;
+    return r;
 }
 
 } /* namespace perfm */

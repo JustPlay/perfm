@@ -1,9 +1,8 @@
 #include "perfm_util.hpp"
 #include "perfm_pmu.hpp"
 #include "perfm_option.hpp"
-#include "perfm_event.hpp"
-#include "perfm_evgrp.hpp"
 #include "perfm_monitor.hpp"
+#include "perfm_analyzer.hpp"
 
 #include <cstdio>
 #include <cstdlib>
@@ -19,82 +18,109 @@
 
 #include <perfmon/pfmlib_perf_event.h>
 
+namespace perfm {
+    
+inline bool perf_event_avail()
+{
+    return ::access("/proc/sys/kernel/perf_event_paranoid", F_OK) == 0 ? true : false;
+}
+
+void run_monitor()
+{
+    if (!perf_event_avail()) {
+        perfm_fatal("perf_event NOT supported, exiting...\n");
+    }
+
+    pfm_err_t ret = pfm_initialize();
+    if (ret != PFM_SUCCESS) {
+        perfm_fatal("pfm_initialize() failed, %s\n", pfm_strerror(ret));
+    }
+
+    if (perfm_options.list_pmu) {
+        perfm::pmu_list();
+    }
+
+    perfm::monitor_t pm;
+    pm.open();
+    pm.start();
+    pm.close();
+
+    pfm_terminate();
+}
+
+void run_sampler()
+{
+    if (!perf_event_avail()) {
+        perfm_fatal("perf_event NOT supported, exiting...\n");
+    }
+
+    pfm_err_t ret = pfm_initialize();
+    if (ret != PFM_SUCCESS) {
+        perfm_fatal("pfm_initialize() failed, %s\n", pfm_strerror(ret));
+    }
+
+    if (perfm_options.list_pmu) {
+        perfm::pmu_list();
+    }
+
+    perfm_fatal("TODO\n");
+
+    pfm_terminate();
+}
+
+void run_analyzer()
+{
+    perfm_fatal("TODO\n");
+}
+
+} /* namespace perfm */
 
 int main(int argc, char **argv)
 {
-    if (access("/proc/sys/kernel/perf_event_paranoid", F_OK) != 0) {
-        fprintf(stderr, "perf_event is NOT supported, Exiting...\n");
-        exit(EXIT_FAILURE);
-    }
-
-    // Step 1. parse & validate the command line options
     if (argc < 2) {
         perfm::usage();
         exit(EXIT_SUCCESS);
     }
 
-    int is_args_valid = perfm::perfm_options.parse_cmd_args(argc, argv);
+    perfm::perfm_options.parse(argc, argv);
     
-    switch (is_args_valid) {
-    case COMM_OPTIONS_USAGE:
-        perfm::usage();
-        exit(EXIT_SUCCESS);
-        
-    case COMM_OPTIONS_VERSION:
-        perfm::version();
-        exit(EXIT_SUCCESS);
-
-    case COMM_OPTIONS_ERROR:
-        fprintf(stderr, "Invalid arguments, use '-h' or '--help' to display usage info.\n");
-        exit(EXIT_FAILURE);
+    if (perfm::perfm_options.error) {
+        perfm_fatal("invalid options, use '-h' or '--help' to display usage info.\n");
     }
 
+    if (perfm::perfm_options.version) {
+        perfm::version();
+    }
+    
+    if (perfm::perfm_options.usage) {
+        perfm::usage();
+    }    
+
+    if (perfm::perfm_options.usage || perfm::perfm_options.version) {
+        exit(EXIT_SUCCESS);
+    }
 
     setlocale(LC_ALL, "");
 
-    // Step 2. initialize libpfm
-    pfm_err_t ret = pfm_initialize();
-    if (ret != PFM_SUCCESS) {
-        perfm_fatal("pfm_initialize() failed, %s\n", pfm_strerror(ret)); 
+    perfm::perfm_options.print();
+
+    // run 
+    switch (perfm::perfm_options.perfm_switch) {
+    case PERFM_MONITOR:
+        perfm::run_monitor();
+        break;
+
+    case PERFM_SAMPLE:
+        perfm::run_sampler();
+        break;
+
+    case PERFM_ANALYZE:
+        perfm::run_analyzer();
+        break;
+
+    default:
+        perfm_fatal("this should never happen\n");
     }
-
-    // Step 3. dump the configure for this run of perfm
-    if (perfm::perfm_options.list_pmu_avail) {
-        perfm::pr_pmu_list();
-    }
-
-    perfm::perfm_options.pr_options();
-
-    // Step 4. start the monitor
-    switch (perfm::perfm_options.running_mode)
-    {
-        case PERFM_RUNNING_MODE_MONITOR: 
-        {
-            perfm::monitor_t pm;
-            pm.open();
-            pm.start();
-            pm.close();
-        }
-            break;
-
-        case PERFM_RUNNING_MODE_SAMPLE:
-        {
-            /* TODO */                      
-        }
-            break;
-
-        case PERFM_RUNNING_MODE_ANALYZE:
-        {
-            /* TODO */
-        }
-            break;
-
-        default:
-            ;
-    }
-
-    // Step 5. free resources
-    pfm_terminate();
 
     return 0;
 }

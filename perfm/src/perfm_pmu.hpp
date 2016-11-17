@@ -11,7 +11,7 @@ namespace perfm {
 
 bool pmu_is_available(pfm_pmu_t pmu);
 
-void pr_pmu_list(bool pr_all = 0);
+void pmu_list(bool pr_all = 0);
 
 } /* namespace perfm */
 

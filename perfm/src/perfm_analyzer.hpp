@@ -7,6 +7,7 @@
 
 #include "perfm_util.hpp"
 #include "perfm_option.hpp"
+#include "perfm_xml.hpp"
 
 #include <cstdlib>
 #include <vector>
@@ -39,13 +40,13 @@ public:
 private:
     bool metric_parse(xml::xml_node<char> *metric);
 
-    std::string formula_in2postfix(const std::string &formula_infix) const;
+    std::string expr_in2postfix(const std::string &infix) const;
 
-    double formula_eval(const me_formula_t &formula) const;
+    double expr_eval(const me_formula_t &expr) const;
 
 private:
     std::unordered_map<metric_nam_t, me_formula_t> formula_list; /* metric = formula
-                                                                  * e.g. 
+                                                                  * e.g.
                                                                   *     metric_CPI = a / b
                                                                   *     a = CPU_CLK_UNHALTED.THREAD
                                                                   *     b = INST_RETIRED.ANY

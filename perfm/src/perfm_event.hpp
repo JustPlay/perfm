@@ -171,7 +171,7 @@ public:
     }
 
     int ev_stop() {
-        return ::ioctl(this->fd, PERF_EVENT_IOC_DISABLE, 0);    
+        return ::ioctl(this->fd, PERF_EVENT_IOC_DISABLE, 0);
     }
 
     int ev_reset() {

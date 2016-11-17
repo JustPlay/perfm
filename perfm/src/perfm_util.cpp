@@ -97,7 +97,7 @@ std::string str_trim(const std::string &str, const char *charlist)
     bool chmap[256] = { false };
     auto chlen = charlist ? std::strlen(charlist) : 0;
 
-    for (int i = 0; i < chlen; ++i) {
+    for (size_t i = 0; i < chlen; ++i) {
         chmap[charlist[i]] = true;
     }
 

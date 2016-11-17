@@ -10,19 +10,20 @@
 
 #include <sys/types.h>
 
-#define COMM_OPTIONS_ERROR    -1
-#define COMM_OPTIONS_VALID     0
-#define COMM_OPTIONS_USAGE     1
-#define COMM_OPTIONS_VERSION   2
-
 typedef enum {
-    PERFM_RUNNING_MODE_MONITOR = 0,
-    PERFM_RUNNING_MODE_SAMPLE,
-    PERFM_RUNNING_MODE_ANALYZE,
-    PERFM_RUNNING_MODE_MAX
-} perfm_running_mode_t;
+    PERFM_MONITOR = 0,
+    PERFM_SAMPLE,
+    PERFM_ANALYZE,
+    PERFM_MAX
+} perfm_switch_t;
 
 namespace perfm {
+
+void usage(const char *cmd = "perfm");
+
+inline void version() {
+    fprintf(stderr, "perfm - in developing...\n");
+}
 
 class options_t {
 
@@ -30,75 +31,89 @@ public:
     options_t() = default;
 
     ~options_t() {
-        if (in_fp) {
-            ::fclose(in_fp);
+        if (fp_in) {
+            ::fclose(fp_in);
         }
 
-        if (out_fp) {
-            ::fclose(out_fp);
+        if (fp_out) {
+            ::fclose(fp_out);
         }
     }
 
-    int parse_cmd_args(int argc, char **argv);
+    void parse(int argc, char **argv);
+    void print() const;
 
-    void pr_options() const;
-
-    size_t nr_groups() const {
+    size_t nr_group() const {
         return this->ev_groups.size();
     }
 
-    const std::vector<std::string> &get_event_groups() const {
+    const std::vector<std::string> &get_event_group() const {
         return this->ev_groups;
     }
 
-    static int nr_group_supp() {
-        return options_t::max_nr_grps;
+    static int nr_group_max() {
+        return options_t::max_nr_group;
     }
 
-    static int nr_event_supp() {
-        return options_t::max_nr_evts;
+    static int sz_group_max() {
+        return options_t::max_sz_group;
     }
 
 private:
     bool parse_evcfg_file();
 
 public:
-    bool rdfmt_timeing = true;   /* Always be true */
-    bool rdfmt_evgroup = false;  /* Reading all events in a group at once by just one read() call,
+    //
+    // general options for perfm
+    //
+    perfm_switch_t perfm_switch = PERFM_MAX;
+
+    bool error    = false;
+    bool usage    = false;
+    bool version  = false;
+    bool verbose  = false; /* verbose level */
+    bool list_pmu = false; /* list available PMUs */
+    bool skip_err = false; /* ignore non-fatal error */
+
+    //
+    // options for perfm.monitor
+    // 
+    bool rdfmt_timeing = true;   /* always be true */
+    bool rdfmt_evgroup = false;  /* reading all events in a group at once by just one read() call,
                                   * NOTE: inherit does not work for some combinations of read_formats,
                                   *       such as PERF_FORMAT_GROUP, see perf_event_open(2) for more detail.
                                   */
 
-    bool incl_children = false;  /* The counter should count events of child tasks, see perf_event_open(2) */
-    bool start_on_exec = false;  /* Start the counter automatically after a call to exec(2) */
+    bool incl_children = false;  /* the counter should count events of child tasks, see perf_event_open(2) */
+    bool start_on_exec = false;  /* start the counter automatically after a call to exec(2) */
 
-    double interval;             /* Time (s) that an event group is monitored */
-    int loops;                   /* The number of times each event group is monitored */
-    pid_t pid;                   /* Process/thread id to be monitored */
-
-    int verbose = 0;             /* Verbose level */
-    int cpu = -1;                /* The CPU to be monitered; -1 for all CPUs */
-    std::string plm = "ukh";     /* Privilege level mask */
+    double interval;             /* time (s) that an event group is monitored */
+    int loops;                   /* the number of times each event group is monitored */
+    pid_t pid;                   /* process/thread id to be monitored */
+    int cpu = -1;                /* the CPU to be monitered; -1 for all CPUs */
+    std::string plm = "ukh";     /* privilege level mask */
 
     std::string in_file;
     std::string out_file;
 
-    FILE *in_fp  = NULL;
-    FILE *out_fp = NULL;
+    FILE *fp_in  = NULL;
+    FILE *fp_out = NULL;
 
-    static constexpr int max_nr_grps = 64;  /* the maximum number of event groups support by perfm,
-                                             * for now, the value is 64
-                                             */
+    static constexpr int max_nr_group = 64;  /* the maximum number of event groups support by perfm,
+                                              * for now, the value is 64
+                                              */
 
-    static constexpr int max_nr_evts = 32;  /* the maximum number of events in one group support by perfm,
-                                             * for now, we support a maximum of 32 events in one group,
-                                             * which would be large enough
-                                             */ 
-    perfm_running_mode_t running_mode = PERFM_RUNNING_MODE_MONITOR;
+    static constexpr int max_sz_group = 32;  /* the maximum number of events in one group support by perfm,
+                                              * for now, we support a maximum of 32 events in one group,
+                                              * which would be large enough
+                                              */ 
+    //
+    // options for perfm.sample
+    // 
 
-    bool list_pmu_avail = false; /* list the available PMUs */
-    bool ignore_error   = true;  /* ignore non-fatal error */
-
+    //
+    // options for perfm.analyze
+    // 
 private:
     std::vector<std::string> ev_groups; /* event group list 
                                          * - events separated by ',' within the same group
@@ -109,14 +124,7 @@ private:
                                          */
 };
 
-extern options_t perfm_options; /* the global configure options */
-
-void usage(const char *cmd = "perfm");
-
-inline void version() {
-    fprintf(stderr, "perfm - in developing...\n");
-}
-
+extern options_t perfm_options; /* the global configure options for perfm */
 
 } /* namespace perfm */
 

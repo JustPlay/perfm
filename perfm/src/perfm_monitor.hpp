@@ -31,7 +31,8 @@ public:
     void stop();
 
 private:
-    int rr();
+    void rr();
+    int loop();
 
 private:
     std::vector<evgrp_t::ptr_t> grp_list; /* event group list */

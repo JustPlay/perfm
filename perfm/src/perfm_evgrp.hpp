@@ -69,7 +69,7 @@ public:
     }
 
     int gr_stop() {
-        return ioctl(gr_leader()->ev_fd(), PERF_EVENT_IOC_DISABLE, 0);    
+        return ioctl(gr_leader()->ev_fd(), PERF_EVENT_IOC_DISABLE, 0);
     }
 
     int gr_reset() {
