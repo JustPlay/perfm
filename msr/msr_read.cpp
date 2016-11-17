@@ -20,35 +20,32 @@
 
 #include <errno.h>
 #include <fcntl.h>
-#include <err.h>
 
 #include "msr_version.hpp"
 
-#define program "msr_write"
+#define program "msr_read"
 
 #define msr_warn(fmt, ...) fprintf(stderr, program ": " fmt, ##__VA_ARGS__) 
 
 namespace msr {
-    
+
 const struct option long_options[] = {
     {"help",      no_argument,       NULL, 'h'},
-    {"version",   no_argument,       NULL, 'V'},
+    {"version",   no_argument,       NULL, 'v'},
     {"all",       no_argument,       NULL, 'a'},
     {"processor", required_argument, NULL, 'p'},
     {"cpu",       required_argument, NULL, 'p'},
     {NULL,        no_argument,       NULL,  0 }
 };
 
-const char shot_options[] = "hVap:";
+const char shot_options[] = "hvap:";
 
 typedef struct {
     int cpu;
     uint32_t reg;
-    std::vector<uint64_t> vals;
 } options_t;
 
 options_t options;
-
 
 void usage()
 {
@@ -57,14 +54,14 @@ void usage()
             "    %s [options] <register-id> <register-value> [...]\n"
             "Options:\n"
             "    --help         -h  print this help\n"
-            "    --version      -V  print current version\n"
+            "    --version      -v  print current version\n"
             "    --all          -a  all processors\n"
             "    --processor #  -p  select processor number (default 0)\n",
             program
         );
 }
 
-void version()
+inline void version()
 {
     fprintf(stderr, "%s: version %s\n", program, MSR_VERSION_STRING);
 }
@@ -95,81 +92,94 @@ bool is_onln(int cpu)
     return true;
 }
 
+/**
+ * msr_print - print value in the given format
+ *
+ * @val  value to print
+ *
+ * FIXME:
+ *
+ */
+void msr_print(uint64_t val)
+{
+    FILE *fp = stdout;
+
+    fprintf(fp, "%zx\n", val);
+}
+
 /** 
- * msr_write - write values to @cpu's msr register specified by @reg
+ * msr_read - read values from @cpu's msr register specified by @reg
  *
  * @cpu   which processor
  * @reg   the register id
- * @vals  values to write 
  *
  * Return:
- *     true  - write succ
- *     false - write fail
+ *     true  - read succ
+ *     false - read fail
  */
-bool msr_write(int cpu, uint32_t reg, const std::vector<uint64_t> &vals)
+bool msr_read(int cpu, uint32_t reg)
 {
     if (!is_onln(cpu)) {
         msr_warn("cpu %2d does not online\n", cpu);
         return true;
     }
 
-    std::string msr_path = "/dev/cpu/" + std::to_string(cpu) + "/msr";  
+    std::string msr_path = "/dev/cpu/" + std::to_string(cpu) + "/msr";
 
-    int fd = ::open(msr_path.c_str(), O_WRONLY);
+    int fd = ::open(msr_path.c_str(), O_RDONLY);
     if (fd == -1) {
         switch(errno) {
 
         // the file is a device special file and no corresponding device exists
         case ENXIO:
             msr_warn("cpu %2d does not exist\n", cpu);
-            return false; 
+            return false;
 
         //
         case EIO:
             msr_warn("cpu %2d does not support MSR\n", cpu);
-            return false; 
+            return false;
 
         default:
             msr_warn("failed on open MSR file for cpu %d, %s\n", cpu, strerror_r(errno, NULL, 0));
-            return false; 
-        }
-    }
-    
-    for (size_t i = 0; i < vals.size(); ++i) {
-        uint64_t val = vals[i];
-
-        if (::pwrite(fd, &val, sizeof(val), reg) != sizeof(val)) {
-            msr_warn("failed to write MSR file for cpu %d, %s\n", cpu, strerror_r(errno, NULL, 0)); 
-            ::close(fd);
             return false;
         }
     }
-   
+    
+    uint64_t val = 0;
+
+    if (::pread(fd, &val, sizeof(val), reg) != sizeof(val)) {
+        msr_warn("failed to read MSR file for cpu %d, %s\n", cpu, strerror_r(errno, NULL, 0));
+        ::close(fd);
+        return false;
+    }
+
     ::close(fd);
+
+    msr_print(val);
 
     return true;
 }
 
 
 /** 
- * msr_write - write values to all (online) cpus' msr register specified by @reg
+ * msr_read - read values from all (online) cpus' msr register specified by @reg
  *
  * @reg   the register id
- * @vals  values to write 
  *
  * Return:
- *     true  - write succ
- *     false - write fail
+ *     true  - read succ
+ *     false - read fail
  */
-bool msr_write(uint32_t reg, const std::vector<uint64_t> &vals)
+bool msr_read(uint32_t reg)
 {
-    struct dirent **namelist; 
+    struct dirent **namelist;
     size_t nr_dirent = 0;
 
     nr_dirent = ::scandir("/dev/cpu", &namelist, is_cpu, 0);
 
     for (size_t cpu = 0; cpu < nr_dirent; ++cpu) {
-        msr_write(std::stoi(namelist[cpu]->d_name), reg, vals);
+        msr_read(std::stoi(namelist[cpu]->d_name), reg);
     }
 
     for (size_t cpu = 0; cpu < nr_dirent; ++cpu) {
@@ -193,7 +203,7 @@ int main(int argc, char **argv)
             msr::usage();
             exit(EXIT_SUCCESS);
 
-        case 'V':
+        case 'v':
             msr::version();
             exit(EXIT_SUCCESS);
 
@@ -208,10 +218,10 @@ int main(int argc, char **argv)
         default:
             msr::usage();
             exit(EXIT_FAILURE);
-        }        
+        }
     }
 
-    if (optind + 2 > argc) {
+    if (optind + 1 > argc) {
         msr::usage();
         exit(EXIT_FAILURE);
     }
@@ -223,13 +233,9 @@ int main(int argc, char **argv)
 
     msr::options.reg = std::stoul(argv[optind++], 0, 16);
 
-    while (optind < argc) {
-        msr::options.vals.push_back(std::stoull(argv[optind++], 0, 16));
-    }
-
     if (msr::options.cpu == -1) {
-        msr::msr_write(msr::options.reg, msr::options.vals);
+        msr::msr_read(msr::options.reg);
     } else {
-        msr::msr_write(msr::options.cpu, msr::options.reg, msr::options.vals);
+        msr::msr_read(msr::options.cpu, msr::options.reg);
     }
 }
