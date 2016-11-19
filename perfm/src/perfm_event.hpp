@@ -5,7 +5,6 @@
 #ifndef __PERFM_EVENT_HPP__
 #define __PERFM_EVENT_HPP__
 
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <cstdint>
@@ -28,8 +27,8 @@
  * 
  *    The scaling information will be used to scale the raw count as if the event 
  *    had run all along.
- *    The scale rules are list bellow:
  *
+ *    The scale rules are list bellow:
  *    - TIME_RUNNING <= TIME_ENABLED
  *    - TIME_RUNNING != 0 
  *    - RAW_COUNT * TIME_ENABLED / TIME_RUNNING
@@ -101,9 +100,16 @@ public:
         return this->_group_fd;
     }
 
-    struct perf_event_attr *attribute() {
-        return &this->_hw;
-    }
+    /**
+     * attribute - get the attribute struct for this perf_event instance
+     *
+     * Return:
+     *     return a pointer which point to the copy of @this->_hw
+     *
+     * Description:
+     *     the returned pointer must be freed by the caller
+     */
+    struct perf_event_attr *attribute();
 
     void perf_fd(int fd) {
         this->_fd = fd;
@@ -158,13 +164,15 @@ public:
 
     virtual ~event() { }
 
+    using perf_event::open;
+
     /** 
      * open - encode & open the event for monitoring
      *
      * @evn  event name string  
      * @pid  process/thread to minitor, -1 for any process/thread
-     * @grp  group leader for this event
      * @cpu  processor to monitor, -1 for any processor
+     * @grp  group leader for this event
      * @plm  privilege level mask, used by libpfm4
      * @flg  the flags argument for perf_event_open()
      *
@@ -173,7 +181,7 @@ public:
      *
      * Description:
      */
-    int open(const std::string &evn, pid_t pid, int grp = -1, int cpu = -1, unsigned long plm = PFM_PLM3 | PFM_PLM0, unsigned long flg = 0);
+    int open(const std::string &evn, pid_t pid, int cpu = -1, int grp = -1, unsigned long plm = PFM_PLM3 | PFM_PLM0, unsigned long flg = 0);
 
     bool read();
     bool copy();
@@ -221,16 +229,16 @@ public:
         this->_plm = plm;
     }
 
-    void pmu_cntr(const pmu_cntr_t &pmu_cntr) {
-        pmu_cntr(std::get<0>(pmu_cntr), std::get<1>(pmu_cntr), std::get<2>(pmu_cntr));
+    void pmu_cntr(const pmu_cntr_t &pmu) {
+       pmu_cntr(std::get<0>(pmu), std::get<1>(pmu), std::get<2>(pmu));
     }
 
-    void pmu_cntr(uint64_t pmu_cntr_val, uint64_t time_enabled, uint64_t time_running) {
+    void pmu_cntr(uint64_t pmu, uint64_t time_enabled, uint64_t time_running) {
         _pmu_prev[0] = _pmu_curr[0];
         _pmu_prev[1] = _pmu_curr[1];
         _pmu_prev[2] = _pmu_curr[2];
 
-        _pmu_curr[0] = pmu_cntr_val;
+        _pmu_curr[0] = pmu;
         _pmu_curr[1] = time_enabled;
         _pmu_curr[2] = time_running;
     }

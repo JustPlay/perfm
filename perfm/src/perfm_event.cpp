@@ -11,8 +11,6 @@
 #include <unistd.h>
 #include <errno.h>
 
-#include <perfmon/pfmlib_perf_event.h>
-
 namespace {
 
 /* 
@@ -24,7 +22,7 @@ namespace {
 
 #define PERF_MAX PERF_TYPE_MAX
 
-const char *perf_evtype[PERF_MAX] = {
+const char *ev_type[PERF_MAX] = {
     "PERF_HARDWARE",
     "PERF_SOFTWARE",
     "PERF_TRACEPOINT",
@@ -76,6 +74,21 @@ int perf_event::close()
     }
 
     return ret;
+}
+
+struct perf_event_attr *perf_event::attribute() {
+    perf_event_attr *hw_copy = nullptr;
+    try {
+        hw_copy = new perf_event_attr;
+    } catch (const std::bad_alloc &) {
+        hw_copy = nullptr;
+    }
+    
+    if (hw_copy) {
+        memmove(&hw_copy, &this->_hw, sizeof(hw_copy));
+    }
+
+    return hw_copy;
 }
 
 bool event::read()
@@ -144,19 +157,19 @@ uint64_t event::scale() const
 
 event::ptr_t event::alloc()
 {
-    event *event = nullptr;
+    event *ev = nullptr;
 
     try {
-        event = new event;
+        ev = new event;
     } catch (const std::bad_alloc &e) {
         perfm_warn("%s\n", e.what());
-        event = nullptr;
+        ev = nullptr;
     }
     
-    return ptr_t(event);
+    return ptr_t(ev);
 }
 
-int event::open(const std::string &evn, pid_t pid, int grp, int cpu, unsigned long plm, unsigned long flg)
+int event::open(const std::string &evn, pid_t pid, int cpu, int grp, unsigned long plm, unsigned long flg)
 {
     this->process(pid);
     this->cpu(cpu);
@@ -199,7 +212,9 @@ int event::open(const std::string &evn, pid_t pid, int grp, int cpu, unsigned lo
         hw.inherit = 1;
     } 
 
-    this->set_attr(&hw);
+    /* TODO (we need more setting) */
+
+    this->attribute(&hw);
 
     return this->open();
 }
@@ -212,8 +227,8 @@ void event::print() const
     }
 
     fprintf(fp, "- EVENT - %s\n", this->name().c_str());
-    fprintf(fp, "  pmu curr: %zu  %zu  %zu\n", _pmu_curr[0], _pmu_curr[1], _pmu_curr[2]);
-    fprintf(fp, "  pmu prev: %zu  %zu  %zu\n", _pmu_prev[0], _pmu_prev[1], _pmu_prev[2]);
+
+    /* TODO */
 }
 
 void event::prcfg() const
@@ -255,7 +270,7 @@ void ev2perf(const std::string &evn, FILE *fp)
                 "      .exclude_callchain_user  : %s\n"
                 "      .use_clockid             : %s\n"
                 "",
-                perf_evtype[hw.type],
+                ev_type[hw.type],
                 hw.config,
                 hw.disabled                 ? "true" : "false",
                 hw.inherit                  ? "true" : "false",

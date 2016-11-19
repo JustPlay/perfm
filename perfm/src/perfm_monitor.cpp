@@ -1,19 +1,21 @@
+#include "perfm_util.hpp"
+#include "perfm_option.hpp"
+#include "perfm_event.hpp"
+#include "perfm_group.hpp"
+#include "perfm_monitor.hpp"
+
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <vector>
 #include <cassert>
+#include <new>
 
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
 
 #include <perfmon/pfmlib_perf_event.h>
-
-#include "perfm_util.hpp"
-#include "perfm_event.hpp"
-#include "perfm_group.hpp"
-#include "perfm_monitor.hpp"
 
 namespace perfm {
 
@@ -36,6 +38,20 @@ inline bool cpu_exist(int cpu)
     return is_onln; 
 }
 
+monitor::ptr_t monitor::alloc()
+{
+    monitor *m = nullptr;
+
+    try {
+        m = new monitor;
+    } catch (const std::bad_alloc &) {
+        m = nullptr;
+        perfm_warn("failed to alloc monitor object\n");
+    }
+
+    return ptr_t(m);
+}
+
 void monitor::open()
 {
     int pid = perfm_options.pid;
@@ -55,9 +71,9 @@ void monitor::open()
     const auto &ev_group = perfm_options.get_event_group();
     
     for (const auto &ev_list : ev_group) {
-        group_t::ptr_t grp = group_t::creat();
-        grp->open(ev_list, perfm_options.pid, perfm_options.cpu, perfm_options.plm);
-        _glist.push_back(grp);
+        group::ptr_t g = group::alloc();
+        g->open(ev_list, perfm_options.pid, perfm_options.cpu, perfm_options.plm);
+        _glist.push_back(g);
     }
 
     assert(_glist.size() == ev_group.size());

@@ -40,10 +40,10 @@ void run_monitor()
         perfm::pmu_list();
     }
 
-    perfm::monitor_t pm;
-    pm.open();
-    pm.start();
-    pm.close();
+    perfm::monitor::ptr_t m = perfm::monitor::alloc();
+    m->open();
+    m->start();
+    m->close();
 
     pfm_terminate();
 }

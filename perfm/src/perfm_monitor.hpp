@@ -5,24 +5,22 @@
 #ifndef __PERFM_MONITOR_HPP__
 #define __PERFM_MONITOR_HPP__
 
-#include <cstdlib>
 #include <vector>
-#include <string>
+#include <memory>
 
-#include <sys/types.h>
-
-#include <perfmon/pfmlib_perf_event.h>
-
-#include "perfm_util.hpp"
-#include "perfm_event.hpp"
 #include "perfm_group.hpp"
-#include "perfm_option.hpp"
 
 namespace perfm {
 
 class monitor {
 
 public:
+    using ptr_t = std::shared_ptr<monitor>;
+
+public:
+    static ptr_t alloc();
+
+    ~monitor() { }
 
     void open();
     void close();
@@ -31,11 +29,13 @@ public:
     void stop();
 
 private:
+    monitor() { }
+
     void rr();
     int loop();
 
 private:
-    std::vector<group_t::ptr_t> _glist; /* event group list */
+    std::vector<group::ptr_t> _glist; /* event group list */
 };
 
 } /* namespace perfm */

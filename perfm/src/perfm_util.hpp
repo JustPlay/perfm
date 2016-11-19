@@ -15,8 +15,6 @@
 #include <vector>
 #include <string>
 
-#include <errno.h>
-
 //
 // http://www.cnblogs.com/caosiyang/archive/2012/08/21/2648870.html
 //

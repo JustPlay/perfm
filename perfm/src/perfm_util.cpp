@@ -5,10 +5,10 @@
 
 #include "perfm_util.hpp"
 
-#include <cmath>
-#include <cstring>
-#include <cstdlib>
 #include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <cmath>
 
 #include <vector>
 #include <string>
@@ -207,8 +207,7 @@ bool write_file(const char *filp, void *buf, size_t sz)
         }
 
         if (errno != EINTR) {
-            char *err = strerror_r(errno, NULL, 0);
-            perfm_warn("failed to write %s, %s\n", filp, err);
+            perfm_warn("failed to write %s, %s\n", filp, strerror_r(errno, NULL, 0));
             ::close(fd);
             return false;
         }
@@ -225,15 +224,13 @@ void *read_file(const char *filp, size_t *sz)
 
     int fd = ::open(filp, O_RDONLY);
     if (fd == -1) {
-        char *err = strerror_r(errno, NULL, 0);
-        perfm_warn("failed to open %s, %s\n", filp, err);
+        perfm_warn("failed to open %s, %s\n", filp, strerror_r(errno, NULL, 0));
         return NULL;
     }
 
     struct stat sb;
     if (fstat(fd, &sb) != 0) {
-        char *err = strerror_r(errno, NULL, 0);
-        perfm_warn("failed to get the attribute for %s, %s\n", filp, err);
+        perfm_warn("failed to stat file %s, %s\n", filp, strerror_r(errno, NULL, 0));
         close(fd);
         return NULL;
     }
@@ -259,8 +256,7 @@ void *read_file(const char *filp, size_t *sz)
         }
 
         if (errno != EINTR) {
-            char *err = strerror_r(errno, NULL, 0);
-            perfm_warn("failed to read %s, %s\n", filp, err);
+            perfm_warn("failed to read %s, %s\n", filp, strerror_r(errno, NULL, 0));
             close(fd);
             free(res);
             return NULL;
