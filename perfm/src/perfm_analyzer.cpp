@@ -10,7 +10,7 @@
 
 namespace perfm {
 
-bool analyzer_t::metric_parse(xml::xml_node<char> *metric)
+bool analyzer::metric_parse(xml::xml_node<char> *metric)
 {
     // parsing metric name (uniq & non-empty)
     xml::xml_attribute<char> *name = metric->first_attribute("name");
@@ -69,7 +69,7 @@ bool analyzer_t::metric_parse(xml::xml_node<char> *metric)
     return true;
 }
 
-bool analyzer_t::metric_parse(const char *filp)
+bool analyzer::metric_parse(const char *filp)
 {
     void *xml_fil = read_file(filp);
     if (!xml_fil) {
@@ -101,7 +101,7 @@ bool analyzer_t::metric_parse(const char *filp)
     return true;
 }
 
-std::string analyzer_t::expr_in2postfix(const std::string &expr_infix) const
+std::string analyzer::expr_in2postfix(const std::string &expr_infix) const
 {
     if (expr_infix.empty()) {
         return "";
@@ -227,7 +227,7 @@ std::string analyzer_t::expr_in2postfix(const std::string &expr_infix) const
     return std::move(expr_postfix);
 }
 
-double analyzer_t::expr_eval(const me_formula_t &formula) const
+double analyzer::expr_eval(const me_formula_t &formula) const
 {
    /* FIXME */ 
 
@@ -335,7 +335,7 @@ double analyzer_t::expr_eval(const me_formula_t &formula) const
     return stk.top();
 }
 
-void analyzer_t::metric_eval(const std::string &metric)
+void analyzer::metric_eval(const std::string &metric)
 {
     auto iter = this->formula_list.find(metric);
     if (iter == this->formula_list.end()) {
@@ -348,7 +348,7 @@ void analyzer_t::metric_eval(const std::string &metric)
     /* TODO */
 }
 
-void analyzer_t::metric_eval()
+void analyzer::metric_eval()
 {
     for (auto iter = metrics_list.begin(); iter != metrics_list.end(); ++iter) {
         metric_eval(*iter);

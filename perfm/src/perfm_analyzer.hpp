@@ -22,7 +22,7 @@ namespace perfm {
 
 namespace xml = rapidxml;
 
-class analyzer_t {
+class analyzer {
 public:
     using evnam_set_t = std::unordered_set<std::string>;               /* event name list */
     using evdat_fmt_t = std::tuple<uint64_t>;                          /* event value fmt */

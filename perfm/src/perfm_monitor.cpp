@@ -12,7 +12,7 @@
 
 #include "perfm_util.hpp"
 #include "perfm_event.hpp"
-#include "perfm_evgrp.hpp"
+#include "perfm_group.hpp"
 #include "perfm_monitor.hpp"
 
 namespace perfm {
@@ -36,7 +36,7 @@ inline bool cpu_exist(int cpu)
     return is_onln; 
 }
 
-void monitor_t::open()
+void monitor::open()
 {
     int pid = perfm_options.pid;
     if (pid != -1 && !pid_exist(pid)) {
@@ -55,55 +55,55 @@ void monitor_t::open()
     const auto &ev_group = perfm_options.get_event_group();
     
     for (const auto &ev_list : ev_group) {
-        evgrp_t::ptr_t grp = evgrp_t::creat();
-        grp->gr_open(ev_list, perfm_options.pid, perfm_options.cpu, perfm_options.plm);
-        grp_list.push_back(grp);
+        group_t::ptr_t grp = group_t::creat();
+        grp->open(ev_list, perfm_options.pid, perfm_options.cpu, perfm_options.plm);
+        _glist.push_back(grp);
     }
 
-    assert(grp_list.size() == ev_group.size());
+    assert(_glist.size() == ev_group.size());
 }
 
-void monitor_t::close()
+void monitor::close()
 {
-    for (decltype(grp_list.size()) i = 0; i < grp_list.size(); ++i) {
-        grp_list[i]->gr_close();
+    for (decltype(_glist.size()) i = 0; i < _glist.size(); ++i) {
+        _glist[i]->close();
     }
 }
 
-void monitor_t::start() 
+void monitor::start() 
 {
     loop();
 }
 
-void monitor_t::stop() 
+void monitor::stop() 
 {
     /* TODO */
 }
 
-void monitor_t::rr()
+void monitor::rr()
 {
     size_t id = 0;
-    size_t nr = grp_list.size();
+    size_t nr = _glist.size();
 
     while (id++ < nr) {
         // 1. start the monitor
-        grp_list[id]->gr_start();
+        _glist[id]->start();
 
         // 2. monitor for the specified time interval
         nanoseconds_sleep(perfm_options.interval);
         
         // 3. stop the monitor
-        grp_list[id]->gr_stop();
+        _glist[id]->stop();
 
         // 4. read/print the PMU values
-        grp_list[id]->gr_read();
-        grp_list[id]->gr_print();
+        _glist[id]->read();
+        _glist[id]->print();
     }
 }
 
-int monitor_t::loop()
+int monitor::loop()
 {
-    assert(grp_list.size());
+    assert(_glist.size());
 
     int r = perfm_options.loops;
 

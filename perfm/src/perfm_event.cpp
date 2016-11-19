@@ -1,3 +1,7 @@
+#include "perfm_util.hpp"
+#include "perfm_option.hpp"
+#include "perfm_event.hpp"
+
 #include <cstdio>
 #include <cstdlib>
 #include <vector>
@@ -9,185 +13,210 @@
 
 #include <perfmon/pfmlib_perf_event.h>
 
-#include "perfm_util.hpp"
-#include "perfm_event.hpp"
-#include "perfm_option.hpp"
-
 namespace {
 
 /* 
- * Must be consistent with the 'perf_type_id' defined in
+ * this definition must be consistent with the 'perf_type_id' defined in
  *     <linux/perf_event.h> 
  * or
  *     <perfmon/perf_event.h>
  */
-const char *perf_evtype[PERF_TYPE_MAX] = {
-    "PERF_TYPE_HARDWARE",
-    "PERF_TYPE_SOFTWARE",
-    "PERF_TYPE_TRACEPOINT",
-    "PERF_TYPE_HW_CACHE",
-    "PERF_TYPE_RAW",
-    "PERF_TYPE_BREAKPOINT",
+
+#define PERF_MAX PERF_TYPE_MAX
+
+const char *perf_evtype[PERF_MAX] = {
+    "PERF_HARDWARE",
+    "PERF_SOFTWARE",
+    "PERF_TRACEPOINT",
+    "PERF_HW_CACHE",
+    "PERF_RAW",
+    "PERF_BREAKPOINT",
 };
 
 } /* namesapce */
 
 namespace perfm {
 
-int event_t::ev_open(const std::string &evn, pid_t pid, int grp, int cpu, unsigned long plm, unsigned long flg)
+perf_event::ptr_t perf_event::alloc()
 {
-    this->pid = pid;
-    this->grp = grp;
-    this->cpu = cpu;
-    this->flg = flg;
-
-    this->plm = plm;
-    this->nam = evn;
-
-    this->fd  = -1;
-
-    pfm_perf_encode_arg_t arg;
-    memset(&arg, 0, sizeof(arg));
-
-    memset(&this->pea, 0, sizeof(this->pea));
-
-    arg.attr = &this->pea;
-    arg.size = sizeof(arg);
-
-    pfm_err_t ret = pfm_get_os_event_encoding(this->nam.c_str(), this->plm, PFM_OS_PERF_EVENT, &arg);
-    if (ret != PFM_SUCCESS) {
-        perfm_warn("%s %s\n", this->nam.c_str(), pfm_strerror(ret));
-        return -1;
-    }
-
-    /* disabled = 1 for group leader; disabled = 0 for group member */
-    this->pea.disabled = -1 == this->grp ? 1 : 0;
-
-    /* include timing information for scaling */
-    if (perfm_options.rdfmt_timeing) {
-        this->pea.read_format |= PEV_RDFMT_TIMEING;
-    }
+    perf_event *event = nullptr;
     
-    /* PERF_FORMAT_GROUP */
-    if (perfm_options.rdfmt_evgroup && this->grp == -1) {
-        this->pea.read_format |= PEV_RDFMT_EVGROUP;
+    try {
+        event = new perf_event;
+    } catch (const std::bad_alloc &e) {
+        perfm_warn("%s\n", e.what());
+        event = nullptr; 
     }
 
-    /* count events of child tasks as well as the task specified */
-    if (perfm_options.incl_children) {
-        this->pea.inherit = 1;
-    } 
-
-    /* TODO */
-
-    return this->ev_open();
+    return ptr_t(event);
 }
 
-int event_t::ev_open()
+int perf_event::open()
 {
-    this->fd = perf_event_open(&this->pea, this->pid, this->cpu, this->grp, this->flg);
+    this->_fd = perf_event_open(&this->_hw, this->_pid, this->_cpu, this->_group_fd, this->_flags);
 
-    if (this->fd == -1) {
-        perfm_warn("perf_event_open() failed on event: %s, process: %d, cpu: %d\n", this->nam.c_str(), this->pid, this->cpu);
+    if (this->_fd == -1) {
+        perfm_warn("failed to open perf_event, %s\n", strerror_r(errno, NULL, 0));
     }
 
-    return this->fd;
+    return this->_fd;
 }
 
-int event_t::ev_close()
+int perf_event::close()
 {
-    if (this->fd == -1) {
+    if (this->_fd == -1) {
         return 0;
     }
 
-    int ret = ::close(this->fd);
+    int ret = ::close(this->_fd);
     if (ret != -1) {
-        this->fd = -1;
+        this->_fd = -1;
+    } else {
+        perfm_warn("failed to close fd\n");
     }
 
     return ret;
 }
 
-bool event_t::ev_read()
+bool event::read()
 {
-    bool is_read_succ = true;
+    bool read_succ = true;
 
-    this->pmu_prev[0] = this->pmu_curr[0];
-    this->pmu_prev[1] = this->pmu_curr[1];
-    this->pmu_prev[2] = this->pmu_curr[2];
+    this->_pmu_prev[0] = this->_pmu_curr[0];
+    this->_pmu_prev[1] = this->_pmu_curr[1];
+    this->_pmu_prev[2] = this->_pmu_curr[2];
 
-    ssize_t ret = ::read(this->fd, this->pmu_curr, sizeof(this->pmu_curr));
-    if (ret != sizeof(this->pmu_curr)) {
-        char *err = strerror_r(errno, NULL, 0);
-        perfm_warn("read PMU counters failed, %s\n", err);
-
-        is_read_succ = false;
+    ssize_t nr = ::read(this->perf_fd(), this->_pmu_curr, sizeof(this->_pmu_curr));
+    if (nr != sizeof(this->_pmu_curr)) {
+        perfm_warn("read PMU counters failed, %s\n", strerror_r(errno, NULL, 0));
+        read_succ = false;
     }
 
-    return is_read_succ;
+    return read_succ;
 }
 
-uint64_t event_t::ev_delta() const
+uint64_t event::delta() const
 {
-    if (pmu_curr[2] > pmu_curr[1]) {
-        perfm_warn("running time (%zu) > enabled time (%zu).\n", pmu_curr[2], pmu_curr[1]);
+    if (_pmu_curr[2] > _pmu_curr[1]) {
+        perfm_warn("running time (%zu) > enabled time (%zu).\n", _pmu_curr[2], _pmu_curr[1]);
     }
 
-    if (pmu_curr[2] == 0 && pmu_curr[0] != 0) {
-        perfm_warn("running time *zero*, scaling failed. %zu, %zu, %zu.\n", pmu_curr[0], pmu_curr[1], pmu_curr[2]);
+    if (_pmu_curr[2] == 0 && _pmu_curr[0] != 0) {
+        perfm_warn("running time *zero*, scaling failed. %zu, %zu, %zu.\n", _pmu_curr[0], _pmu_curr[1], _pmu_curr[2]);
     }
 
-    if (pmu_curr[2] <= pmu_prev[2]) {
-        perfm_warn("running time curr (%zu) <= prev (%zu).\n", pmu_curr[2], pmu_prev[2]);
+    if (_pmu_curr[2] <= _pmu_prev[2]) {
+        perfm_warn("running time curr (%zu) <= prev (%zu).\n", _pmu_curr[2], _pmu_prev[2]);
         return 0;
     }
 
     double prev[3], curr[3];
     
-    prev[0] = pmu_prev[0];
-    prev[1] = pmu_prev[1];
-    prev[2] = pmu_prev[2];
+    prev[0] = _pmu_prev[0];
+    prev[1] = _pmu_prev[1];
+    prev[2] = _pmu_prev[2];
 
-    curr[0] = pmu_curr[0];
-    curr[1] = pmu_curr[1];
-    curr[2] = pmu_curr[2];
+    curr[0] = _pmu_curr[0];
+    curr[1] = _pmu_curr[1];
+    curr[2] = _pmu_curr[2];
 
     return static_cast<uint64_t>((curr[0] - prev[0]) * (curr[1] - prev[1]) / (curr[2] - prev[2]));
-
 }
 
-uint64_t event_t::ev_scale() const
+uint64_t event::scale() const
 {
     uint64_t res = 0;
 
-    if (pmu_curr[2] > pmu_curr[1]) {
-        perfm_warn("running time (%zu) > enabled time (%zu).\n", pmu_curr[2], pmu_curr[1]);
+    if (_pmu_curr[2] > _pmu_curr[1]) {
+        perfm_warn("running time (%zu) > enabled time (%zu).\n", _pmu_curr[2], _pmu_curr[1]);
     }
 
-    if (pmu_curr[2] == 0 && pmu_curr[0] != 0) {
-        perfm_warn("running time *zero*, scaling failed. %zu, %zu, %zu.\n", pmu_curr[0], pmu_curr[1], pmu_curr[2]);
+    if (_pmu_curr[2] == 0 && _pmu_curr[0] != 0) {
+        perfm_warn("running time *zero*, scaling failed. %zu, %zu, %zu.\n", _pmu_curr[0], _pmu_curr[1], _pmu_curr[2]);
     }
 
-    if (pmu_curr[2] != 0) {
-        res = static_cast<uint64_t>(1.0 * pmu_curr[0] * pmu_curr[1] / pmu_curr[2]);
+    if (_pmu_curr[2] != 0) {
+        res = static_cast<uint64_t>(1.0 * _pmu_curr[0] * _pmu_curr[1] / _pmu_curr[2]);
     }
     
     return res;
 }
 
-void event_t::ev_print() const
+event::ptr_t event::alloc()
+{
+    event *event = nullptr;
+
+    try {
+        event = new event;
+    } catch (const std::bad_alloc &e) {
+        perfm_warn("%s\n", e.what());
+        event = nullptr;
+    }
+    
+    return ptr_t(event);
+}
+
+int event::open(const std::string &evn, pid_t pid, int grp, int cpu, unsigned long plm, unsigned long flg)
+{
+    this->process(pid);
+    this->cpu(cpu);
+    this->mask(flg);
+    this->leader(grp);
+
+    this->_plm = plm;
+    this->_nam = evn;
+
+    pfm_perf_encode_arg_t arg;
+    memset(&arg, 0, sizeof(arg));
+
+    struct perf_event_attr hw;
+    memset(&hw, 0, sizeof(hw));
+
+    arg.attr = &hw;
+    arg.size = sizeof(arg);
+
+    pfm_err_t ret = pfm_get_os_event_encoding(this->name().c_str(), this->pl_mask(), PFM_OS_PERF_EVENT, &arg);
+    if (ret != PFM_SUCCESS) {
+        perfm_warn("%s %s\n", this->name().c_str(), pfm_strerror(ret));
+        return -1;
+    }
+
+    // disabled = 1 for group leader; disabled = 0 for group member
+    hw.disabled = -1 == this->leader() ? 1 : 0;
+
+    // include timing information for scaling
+    if (perfm_options.rdfmt_timeing) {
+        hw.read_format |= PEV_RDFMT_TIMEING;
+    }
+    
+    // PERF_FORMAT_GROUP
+    if (perfm_options.rdfmt_evgroup && this->leader() == -1) {
+        hw.read_format |= PEV_RDFMT_EVGROUP;
+    }
+
+    // count events of child tasks as well as the task specified
+    if (perfm_options.incl_children) {
+        hw.inherit = 1;
+    } 
+
+    this->set_attr(&hw);
+
+    return this->open();
+}
+
+void event::print() const
 {
     FILE *fp = perfm_options.fp_out;
     if (!fp) {
         fp = stdout;
     }
 
-    fprintf(fp, "- EVENT - %s\n", this->ev_nam().c_str());
-    fprintf(fp, "  pmu curr: %zu  %zu  %zu\n", pmu_curr[0], pmu_curr[1], pmu_curr[2]);
-    fprintf(fp, "  pmu prev: %zu  %zu  %zu\n", pmu_prev[0], pmu_prev[1], pmu_prev[2]);
+    fprintf(fp, "- EVENT - %s\n", this->name().c_str());
+    fprintf(fp, "  pmu curr: %zu  %zu  %zu\n", _pmu_curr[0], _pmu_curr[1], _pmu_curr[2]);
+    fprintf(fp, "  pmu prev: %zu  %zu  %zu\n", _pmu_prev[0], _pmu_prev[1], _pmu_prev[2]);
 }
 
-void event_t::ev_prcfg() const
+void event::prcfg() const
 {
     /* TODO */
 }
@@ -243,7 +272,6 @@ void ev2perf(const std::string &evn, FILE *fp)
                 hw.use_clockid              ? "true" : "false"
             );
     fprintf(fp, "\n");
-
 }
 
 } /* namespace perfm */

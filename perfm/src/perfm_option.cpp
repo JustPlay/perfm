@@ -15,7 +15,7 @@
 
 namespace perfm {
 
-options_t perfm_options; /* the global configure options */
+options perfm_options; /* the global configure options */
 
 const char *perfm_switch_str[PERFM_MAX] = {
     "monitor",
@@ -68,7 +68,7 @@ void usage(const char *cmd)
             );
 }
 
-bool options_t::parse_evcfg_file()
+bool options::parse_evcfg_file()
 {
     this->ev_groups.clear();
 
@@ -100,7 +100,7 @@ bool options_t::parse_evcfg_file()
     return true;
 }
 
-void options_t::parse(int argc, char **argv) 
+void options::parse(int argc, char **argv) 
 {
     char ch;
     int  perfm_switch_id = 0;  /* whether the "command switch option" was provided by the user,
@@ -194,7 +194,7 @@ void options_t::parse(int argc, char **argv)
                 break;
 
             case 'e':
-                this->ev_groups = str_split(optarg, ";", options_t::nr_group_max());
+                this->ev_groups = str_split(optarg, ";", options::nr_group_max());
                 break;
 
             case 'i':
@@ -261,7 +261,7 @@ void options_t::parse(int argc, char **argv)
     }
 }
 
-void options_t::print() const
+void options::print() const
 {
     FILE *fp = stdout;
     int rmod = this->perfm_switch;
@@ -281,7 +281,7 @@ void options_t::print() const
 
     int i = 0;
     for (const auto &grp : ev_groups) {
-        auto ev_list = str_split(grp, ",", options_t::sz_group_max()); 
+        auto ev_list = str_split(grp, ",", options::sz_group_max()); 
         
         fprintf(fp, "- Event Group #%d (%lu events)\n", i++, ev_list.size());
         for (const auto &ev : ev_list) {

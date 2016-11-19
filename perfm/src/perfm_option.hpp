@@ -25,12 +25,12 @@ inline void version() {
     fprintf(stderr, "perfm - in developing...\n");
 }
 
-class options_t {
+class options {
 
 public:
-    options_t() = default;
+    options() = default;
 
-    ~options_t() {
+    ~options() {
         if (fp_in) {
             ::fclose(fp_in);
         }
@@ -52,11 +52,11 @@ public:
     }
 
     static int nr_group_max() {
-        return options_t::max_nr_group;
+        return options::max_nr_group;
     }
 
     static int sz_group_max() {
-        return options_t::max_sz_group;
+        return options::max_sz_group;
     }
 
 private:
@@ -124,7 +124,7 @@ private:
                                          */
 };
 
-extern options_t perfm_options; /* the global configure options for perfm */
+extern options perfm_options; /* the global configure options for perfm */
 
 } /* namespace perfm */
 

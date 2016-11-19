@@ -15,12 +15,12 @@
 
 #include "perfm_util.hpp"
 #include "perfm_event.hpp"
-#include "perfm_evgrp.hpp"
+#include "perfm_group.hpp"
 #include "perfm_option.hpp"
 
 namespace perfm {
 
-class monitor_t {
+class monitor {
 
 public:
 
@@ -35,7 +35,7 @@ private:
     int loop();
 
 private:
-    std::vector<evgrp_t::ptr_t> grp_list; /* event group list */
+    std::vector<group_t::ptr_t> _glist; /* event group list */
 };
 
 } /* namespace perfm */
