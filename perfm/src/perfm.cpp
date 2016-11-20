@@ -40,6 +40,8 @@ void run_monitor()
         perfm::pmu_list();
     }
 
+    /* TODO */
+
     perfm::monitor::ptr_t m = perfm::monitor::alloc();
     m->open();
     m->start();
@@ -71,6 +73,13 @@ void run_sampler()
 void run_analyzer()
 {
     perfm_fatal("TODO\n");
+}
+
+void run_top()
+{
+    if (geteuid() != 0) {
+        perfm_fatal("linux's perf_event requires root privilege to do system-wide monitor\n");
+    }
 }
 
 } /* namespace perfm */
