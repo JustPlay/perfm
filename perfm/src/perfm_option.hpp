@@ -14,6 +14,7 @@ typedef enum {
     PERFM_MONITOR = 0,
     PERFM_SAMPLE,
     PERFM_ANALYZE,
+    PERFM_TOP,
     PERFM_MAX
 } perfm_switch_t;
 
@@ -62,6 +63,12 @@ public:
 private:
     bool parse_evcfg_file();
 
+    void parse_general(int argc, char **argv);
+    void parse_monitor(int argc, char **argv);
+    void parse_sample(int argc, char **argv);
+    void parse_analyze(int argc, char **argv);
+    void parse_top(int argc, char **argv);
+
 public:
     //
     // general options for perfm
@@ -76,14 +83,32 @@ public:
     bool skip_err = false; /* ignore non-fatal error */
 
     //
-    // options for perfm.monitor
-    // 
-    bool rdfmt_timeing = true;   /* always be true */
-    bool rdfmt_evgroup = false;  /* reading all events in a group at once by just one read() call,
+    // common options for perfm.monitor/sample/top
+    //
+    static constexpr int max_nr_group = 64;  /* the maximum number of event groups support by perfm,
+                                              * for now, the value is 64
+                                              */
+
+    static constexpr int max_sz_group = 32;  /* the maximum number of events in one group support by perfm,
+                                              * for now, we support a maximum of 32 events in one group,
+                                              * which would be large enough
+                                              */ 
+
+    bool rdfmt_timeing = true;   /* always be true in perfm */
+    bool rdfmt_evgroup = false;  /* reading all events in a group at once by just one read(2) call
                                   * NOTE: inherit does not work for some combinations of read_formats,
                                   *       such as PERF_FORMAT_GROUP, see perf_event_open(2) for more detail.
                                   */
 
+    std::string file_in;
+    std::string file_out;
+
+    FILE *fp_in  = NULL;
+    FILE *fp_out = NULL;
+
+    //
+    // options for perfm.monitor
+    // 
     bool incl_children = false;  /* the counter should count events of child tasks, see perf_event_open(2) */
     bool start_on_exec = false;  /* start the counter automatically after a call to exec(2) */
 
@@ -93,20 +118,6 @@ public:
     int cpu = -1;                /* the CPU to be monitered; -1 for all CPUs */
     std::string plm = "ukh";     /* privilege level mask */
 
-    std::string in_file;
-    std::string out_file;
-
-    FILE *fp_in  = NULL;
-    FILE *fp_out = NULL;
-
-    static constexpr int max_nr_group = 64;  /* the maximum number of event groups support by perfm,
-                                              * for now, the value is 64
-                                              */
-
-    static constexpr int max_sz_group = 32;  /* the maximum number of events in one group support by perfm,
-                                              * for now, we support a maximum of 32 events in one group,
-                                              * which would be large enough
-                                              */ 
     //
     // options for perfm.sample
     // 
@@ -114,6 +125,15 @@ public:
     //
     // options for perfm.analyze
     // 
+
+    //
+    // options for perfm.top
+    //
+    double delay = 1.0;          /* default to 1 second */
+    int max = -1;                /* -1 for inf iters */
+    std::string cpu_list;        /* if empty, select all CPUs */
+    bool batch_mode = false;     /* default to interactive mode */
+
 private:
     std::vector<std::string> ev_groups; /* event group list 
                                          * - events separated by ',' within the same group

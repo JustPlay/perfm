@@ -14,6 +14,8 @@
 
 #include <vector>
 #include <string>
+#include <utility>
+#include <map>
 
 //
 // http://www.cnblogs.com/caosiyang/archive/2012/08/21/2648870.html
@@ -177,6 +179,34 @@ bool save_file(const char *filp, void *buf, size_t sz);
  *     the return buffer should be freed by the caller
  */
 void *read_file(const char *filp, size_t *sz = NULL);
+
+/**
+ * num_cpus_total - return the number of processors installed on this system
+ *
+ * Return:
+ *     the number of processors installed on this system
+ *
+ * Description:
+ *     this func return the number dirs named "cpuX" in "/sys/devices/system/cpu/" ('X' is the cpu number)
+ *     
+ *     in older vesion glibc or linux kernel, the _SC_NPROCESSORS_CONF *do* change when do cpu hotplug
+ */
+size_t num_cpus_total();
+
+
+/**
+ * cpu_frequency - get frequency for all online processor
+ *
+ * Return:
+ *     a map of <cpu, freq>, where cpu means processor id, freq means frequency in MHz
+ *
+ * Description:
+ *     the frequency were obtained from /proc/cpuinfo, so the returned freq may be outdated
+ *     
+ *     for now, cpu_frequency only works on x86 platforms, because other platform may not 
+ *     provide the 'cpu MHz' column (e.g. aarch64 & mips)
+ */
+std::map<int, int> cpu_frequency();
 
 } /* namespace perfm */
 

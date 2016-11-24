@@ -11,4 +11,4 @@ fi
 
 SRC_FILE="perfm_util.cpp  perfm_pmu.cpp  perfm_option.cpp  perfm_event.cpp  ev2perf.cpp"
 
-g++ -std=c++11 -g -Wall -lpfm $SRC_FILE -o $TARGET
+g++ -std=c++11 -g -Wall -lpfm $SRC_FILE -o $TARGET -lrt

@@ -12,7 +12,10 @@
 
 #include <vector>
 #include <string>
+#include <utility>
+#include <fstream>
 #include <functional>
+#include <map>
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -20,6 +23,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <error.h>
+#include <dirent.h>
 
 namespace perfm {
 
@@ -98,7 +102,7 @@ std::string str_trim(const std::string &str, const char *charlist)
     auto chlen = charlist ? std::strlen(charlist) : 0;
 
     for (size_t i = 0; i < chlen; ++i) {
-        chmap[charlist[i]] = true;
+        chmap[static_cast<int>(charlist[i])] = true;
     }
 
     auto need_trim = [&chmap] (int ch) -> bool {
@@ -268,6 +272,103 @@ void *read_file(const char *filp, size_t *sz)
     }
 
     return res;
+}
+
+
+int is_cpu(const struct dirent *dirp)
+{
+    return std::isdigit(dirp->d_name[3]) && std::strncmp(dirp->d_name, "cpu", 3) == 0;
+}
+
+size_t num_cpus_total()
+{
+    struct dirent **namelist; 
+    int nr_dirent = 0;
+
+    nr_dirent = ::scandir("/sys/devices/system/cpu/", &namelist, is_cpu, 0);
+    if (nr_dirent < 0) {
+        perfm_warn("failed to get the # of processors on this system\n");
+        return 0;
+    }
+
+    for (int cpu = 0; cpu < nr_dirent; ++cpu) {
+        free(namelist[cpu]);
+    }
+
+    free(namelist);
+    
+    return nr_dirent;
+}
+
+std::map<int, int> cpu_frequency()
+{
+    std::map<int, int> freq_list;
+
+    std::fstream fp("/proc/cpuinfo", std::ios::in);    
+    if (!fp.good()) {
+        perfm_warn("failed to open /proc/cpuinfo\n");
+    }
+
+    int cpu_id;
+    int cpu_freq;
+
+    bool pair = true;
+
+    std::string line;
+    while (std::getline(fp, line)) {
+        if (line.empty()) {
+            continue;
+        }
+
+        if (line.find_first_of("processor") != std::string::npos) {
+            fprintf(stderr, "%s\n", line.c_str());
+            continue;
+
+            if (!pair) {
+                perfm_fatal("processor & cpu MHz should appear in pair, check /proc/cpuinfo\n");
+            }
+
+            auto slice = str_split(line, ":", 2); 
+            if (slice.size() != 2) {
+                perfm_fatal("the format of /proc/cpuinfo has changed? e.g. not x86 platform\n");
+            }
+
+            try {
+                cpu_id = std::stoi(str_trim(slice[1]));
+            } catch (const std::exception &e) {
+                perfm_fatal("%s %s\n", e.what(), line.c_str());
+            }
+
+            pair = false;
+
+            continue;
+        }
+
+        if (line.find_first_of("cpu MHz") != std::string::npos) {
+            if (pair) {
+                perfm_fatal("processor & cpu MHz should appear in pair, check /proc/cpuinfo\n");
+            }
+
+            auto slice = str_split(line, ":", 2);
+            if (slice.size() != 2) {
+                perfm_fatal("the format of /proc/cpuinfo has changed? e.g. not x86 platform\n");
+            }
+
+            try {
+                cpu_freq = std::stoi(str_trim(slice[1]));
+            } catch (const std::exception &e) {
+                perfm_fatal("%s %s\n", e.what(), line.c_str());
+            }
+
+            freq_list.insert({cpu_id, cpu_freq});
+
+            pair = true;
+
+            continue;
+        }
+    }
+
+    return std::move(freq_list);
 }
 
 } /* namespace perfm */

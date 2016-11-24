@@ -31,7 +31,7 @@ const char *ev_type[PERF_MAX] = {
     "PERF_BREAKPOINT",
 };
 
-} /* namesapce */
+} /* namespace */
 
 namespace perfm {
 
@@ -76,7 +76,7 @@ int perf_event::close()
     return ret;
 }
 
-struct perf_event_attr *perf_event::attribute() {
+struct perf_event_attr *perf_event::attribute() const {
     perf_event_attr *hw_copy = nullptr;
     try {
         hw_copy = new perf_event_attr;
@@ -85,7 +85,7 @@ struct perf_event_attr *perf_event::attribute() {
     }
     
     if (hw_copy) {
-        memmove(&hw_copy, &this->_hw, sizeof(hw_copy));
+        memmove(hw_copy, &this->_hw, sizeof(struct perf_event_attr));
     }
 
     return hw_copy;
@@ -169,12 +169,12 @@ event::ptr_t event::alloc()
     return ptr_t(ev);
 }
 
-int event::open(const std::string &evn, pid_t pid, int cpu, int grp, unsigned long plm, unsigned long flg)
+int event::open(const std::string &evn, pid_t pid, int cpu, int grp, unsigned long flg, unsigned long plm)
 {
     this->process(pid);
     this->cpu(cpu);
-    this->mask(flg);
     this->leader(grp);
+    this->mask(flg);
 
     this->_plm = plm;
     this->_nam = evn;
@@ -194,7 +194,7 @@ int event::open(const std::string &evn, pid_t pid, int cpu, int grp, unsigned lo
         return -1;
     }
 
-    // disabled = 1 for group leader; disabled = 0 for group member
+    // disabled = 1 for group leader, 0 for group member
     hw.disabled = -1 == this->leader() ? 1 : 0;
 
     // include timing information for scaling
@@ -226,34 +226,33 @@ void event::print() const
         fp = stdout;
     }
 
-    fprintf(fp, "- EVENT - %s\n", this->name().c_str());
+    #define DELIMITER "  "
 
-    /* TODO */
+    perfm_fatal("TODO\n");
 }
 
 void event::prcfg() const
 {
-    /* TODO */
-}
+    FILE *fp = stdout;
+    
+    // event's name
+    fprintf(fp, "- %s -\n", this->name().c_str());
 
-void ev2perf(const std::string &evn, FILE *fp)
-{
-    struct perf_event_attr hw; 
-    memset(&hw, 0, sizeof(hw));
+    // event's pid,cpu,group_leader,...
+    fprintf(fp, "  event.pid/process            : %2d\n"
+                "       .cpu/processor          : %2d\n"
+                "       .group_leader/fd        : %2d\n"
+                "       .flags                  : %2lu\n"
+                "\n",
+                this->process(),
+                this->cpu(),
+                this->leader(),
+                this->mask()
+           );
 
-    pfm_perf_encode_arg_t arg;
-    memset(&arg, 0, sizeof(arg));
+    // event's perf attribute
+    struct perf_event_attr *hw = this->attribute();
 
-    arg.attr = &hw;
-    arg.size = sizeof(arg);
-
-    pfm_err_t ret = pfm_get_os_event_encoding(evn.c_str(), PFM_PLM3 | PFM_PLM0, PFM_OS_PERF_EVENT, &arg);
-    if (ret != PFM_SUCCESS) {
-        perfm_warn("%s, %s\n", evn.c_str(), pfm_strerror(ret));
-        return;
-    }
-
-    fprintf(fp, "- EVENT - %s\n", evn.c_str());
     fprintf(fp, "  perf.type                    : %s\n"
                 "      .config                  : %zx\n"
                 "  perf.disabled                : %s\n"
@@ -269,24 +268,25 @@ void ev2perf(const std::string &evn, FILE *fp)
                 "      .exclude_callchain_kernel: %s\n"
                 "      .exclude_callchain_user  : %s\n"
                 "      .use_clockid             : %s\n"
-                "",
-                ev_type[hw.type],
-                hw.config,
-                hw.disabled                 ? "true" : "false",
-                hw.inherit                  ? "true" : "false",
-                hw.pinned                   ? "true" : "false",
-                hw.exclusive                ? "true" : "false",
-                hw.exclude_user             ? "true" : "false",
-                hw.exclude_kernel           ? "true" : "false",
-                hw.exclude_hv               ? "true" : "false",
-                hw.exclude_idle             ? "true" : "false",
-                hw.inherit_stat             ? "true" : "false",
-                hw.task                     ? "true" : "false",
-                hw.exclude_callchain_kernel ? "true" : "false",
-                hw.exclude_callchain_user   ? "true" : "false",
-                hw.use_clockid              ? "true" : "false"
+                "\n",
+                ev_type[hw->type],
+                hw->config,
+                hw->disabled                 ? "true" : "false",
+                hw->inherit                  ? "true" : "false",
+                hw->pinned                   ? "true" : "false",
+                hw->exclusive                ? "true" : "false",
+                hw->exclude_user             ? "true" : "false",
+                hw->exclude_kernel           ? "true" : "false",
+                hw->exclude_hv               ? "true" : "false",
+                hw->exclude_idle             ? "true" : "false",
+                hw->inherit_stat             ? "true" : "false",
+                hw->task                     ? "true" : "false",
+                hw->exclude_callchain_kernel ? "true" : "false",
+                hw->exclude_callchain_user   ? "true" : "false",
+                hw->use_clockid              ? "true" : "false"
             );
-    fprintf(fp, "\n");
+
+    free(hw);
 }
 
 } /* namespace perfm */

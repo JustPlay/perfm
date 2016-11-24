@@ -28,17 +28,18 @@ group::ptr_t group::alloc()
     return ptr_t(g);
 }
 
-int group::open(const std::string &elist, pid_t pid, int cpu, const std::string &plm)
+int group::open(const std::string &elist, pid_t pid, int cpu, unsigned long flags)
 {
     const auto &eargv = str_split(elist, ",", options::sz_group_max()); 
-    return this->open(eargv, pid, cpu, plm);
+    return this->open(eargv, pid, cpu, flags);
 }
 
-int group::open(const std::vector<std::string> &eargv, pid_t pid, int cpu, const std::string &plm)
+int group::open(const std::vector<std::string> &eargv, pid_t pid, int cpu, unsigned long flags)
 {
-    this->_pid = pid;
-    this->_cpu = cpu;
-    this->_grp = 0; // just let the *first* event in this group to be the leader
+    this->_pid   = pid;
+    this->_cpu   = cpu;
+    this->_grp   = 0; // just let the *first* event in this group to be the leader
+    this->_flags = flags;
 
     for (decltype(eargv.size()) i = 0; i < eargv.size(); ++i) {
         event::ptr_t ev = event::alloc();
@@ -46,6 +47,7 @@ int group::open(const std::vector<std::string> &eargv, pid_t pid, int cpu, const
             perfm_warn("failed to alloc event object\n");
             continue;
         }
+
 
         pfm_perf_encode_arg_t arg;
         memset(&arg, 0, sizeof(arg));
@@ -56,27 +58,7 @@ int group::open(const std::vector<std::string> &eargv, pid_t pid, int cpu, const
         arg.attr = &hw;
         arg.size = sizeof(arg);
 
-        unsigned long plm_val= 0;
-
-        if (std::strchr(plm.c_str(), 'u')) {
-            plm_val |= PFM_PLM3;
-        }
-
-        if (std::strchr(plm.c_str(), 'k')) {
-            plm_val |= PFM_PLM0;
-        }
-
-        if (std::strchr(plm.c_str(), 'h')) {
-            plm_val |= PFM_PLMH;
-        }
-
-        if (!plm_val) {
-            perfm_warn("privilege level mask should *not* be zero\n");
-        }
-
-        this->_plm = plm_val;
-
-        pfm_err_t ret = pfm_get_os_event_encoding(eargv[i].c_str(), this->_plm, PFM_OS_PERF_EVENT, &arg);
+        pfm_err_t ret = pfm_get_os_event_encoding(eargv[i].c_str(), PFM_PLM3 | PFM_PLM0, PFM_OS_PERF_EVENT, &arg);
         if (ret != PFM_SUCCESS) {
             if (perfm_options.skip_err) {
                 perfm_warn("invalid event (ignored), %s\n", eargv[i].c_str());
@@ -88,17 +70,21 @@ int group::open(const std::vector<std::string> &eargv, pid_t pid, int cpu, const
 
         ev->process(this->_pid);
         ev->cpu(this->_cpu);
-        ev->mask(this->_flg);
-        ev->pl_mask(this->_plm);
+        ev->mask(this->_flags);
         ev->name(eargv[i]);
+        ev->attribute(&hw);
 
         _elist.push_back(ev);
     }
 
     for (size_t i = 0; i < this->size(); ++i) {
-        struct perf_event_attr *hw = _elist[i]->attribute();
 
-        hw->disabled = i == this->_grp ? 1 : 0;   /* disabled = 1 for group leader; disabled = 0 for others */
+        struct perf_event_attr *hw = _elist[i]->attribute();
+        if (!hw) {
+            perfm_fatal("failed to get event's attribute\n");
+        }
+
+        hw->disabled = i == this->_grp ? 1 : 0;   /* disabled = 1 for group leader, 0 for others */
         if (perfm_options.rdfmt_timeing) {
             hw->read_format |= PEV_RDFMT_TIMEING; /* include timing information for scaling */
         }
@@ -121,8 +107,8 @@ int group::open(const std::vector<std::string> &eargv, pid_t pid, int cpu, const
 }
 
 int group::close() {
-    for (auto &e : _elist) {
-        e->close();
+    for (size_t e = 0; e < _elist.size(); ++e) {
+        _elist[e]->close();
     }
 
     return 0; /* FIXME (error handling) */
@@ -176,16 +162,16 @@ void group::print() const
         fp = stdout;
     }
 
-    fprintf(fp, "-------------------------------------------------------\n"); 
-    fprintf(fp, "- Event Group - nr_events: %-4lu  leader: %-10d   -\n", size(), leader()->perf_fd());
-    fprintf(fp, "-------------------------------------------------------\n"); 
+    #define DELIMITER "  "
 
+    // 1. each event a line
+    // 2. event groups are separated by an empty line
+    // 3. column fields are separated by DELIMITER
     for (decltype(_elist.size()) i = 0; i < _elist.size(); ++i) {
-        _elist[i]->print();
-        fprintf(fp, "\n");
+        fprintf(fp, "%s" DELIMITER "%zu\n", _elist[i]->name().c_str(), _elist[i]->scale());
     }
 
-    /* TODO */
+    fprintf(fp, "\n");
 }
 
 } /* namespace perfm */

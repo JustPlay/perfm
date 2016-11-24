@@ -109,7 +109,7 @@ public:
      * Description:
      *     the returned pointer must be freed by the caller
      */
-    struct perf_event_attr *attribute();
+    struct perf_event_attr *attribute() const;
 
     void perf_fd(int fd) {
         this->_fd = fd;
@@ -170,18 +170,20 @@ public:
      * open - encode & open the event for monitoring
      *
      * @evn  event name string  
+     *
      * @pid  process/thread to minitor, -1 for any process/thread
      * @cpu  processor to monitor, -1 for any processor
      * @grp  group leader for this event
-     * @plm  privilege level mask, used by libpfm4
      * @flg  the flags argument for perf_event_open()
+     *
+     * @plm  privilege level mask, used by libpfm4
      *
      * Return:
      *     the new file descriptor, or -1 if an error occurred 
      *
      * Description:
      */
-    int open(const std::string &evn, pid_t pid, int cpu = -1, int grp = -1, unsigned long plm = PFM_PLM3 | PFM_PLM0, unsigned long flg = 0);
+    int open(const std::string &evn, pid_t pid, int cpu = -1, int grp = -1, unsigned long flg = 0, unsigned long plm = PFM_PLM3 | PFM_PLM0);
 
     bool read();
     bool copy();
@@ -250,8 +252,6 @@ private:
     std::string _nam;   /* event string name, used by libpfm4 */
     unsigned long _plm; /* privilege level mask, used by libpfm4 */
 };
-
-void ev2perf(const std::string &evn, FILE *fp = stdout);
 
 } /* namespace perfm */
 

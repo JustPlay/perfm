@@ -26,16 +26,15 @@ inline bool pid_exist(int pid)
 
 inline bool cpu_exist(int cpu)
 {
-    bool is_onln = true;
-
-    int nr_cpu = sysconf(_SC_NPROCESSORS_ONLN);
+    int sc_cpu_conf = sysconf(_SC_NPROCESSORS_CONF); /* should be constant, BUT in older version linux or glibc ... */
+    int sc_cpu_onln = sysconf(_SC_NPROCESSORS_ONLN); /* will change when do cpu hotplug */
 
     // when cpuX is online, '/sys/devices/system/cpu/cpuX/cache' EXISTS on x86 linux, otherwise NOT
-    if (cpu >= nr_cpu || ::access(std::string("/sys/devices/system/cpu/cpu" + std::to_string(cpu) + "/cache").c_str(), F_OK) != 0) {
-        is_onln = false;
+    if (cpu < 0 || ::access(std::string("/sys/devices/system/cpu/cpu" + std::to_string(cpu) + "/cache").c_str(), F_OK) != 0) {
+        return false;
     }
 
-    return is_onln; 
+    return true; 
 }
 
 monitor::ptr_t monitor::alloc()
@@ -72,7 +71,7 @@ void monitor::open()
     
     for (const auto &ev_list : ev_group) {
         group::ptr_t g = group::alloc();
-        g->open(ev_list, perfm_options.pid, perfm_options.cpu, perfm_options.plm);
+        g->open(ev_list, perfm_options.pid, perfm_options.cpu);
         _glist.push_back(g);
     }
 
