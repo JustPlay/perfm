@@ -52,7 +52,7 @@ void nanoseconds_sleep(double seconds, bool sleep_with_abs_time)
                 req ^= rem; rem ^= req; req ^= rem;
                 continue;
             } else {
-                perfm_warn("sleep failed, remaining %ld(ns)\n", tv[rem].tv_sec * 1000000000 + tv[rem].tv_nsec);
+                perfm_warn("sleep failed, remaining %ld(s) %ld(ns)\n", tv[rem].tv_sec, tv[rem].tv_nsec);
                 return;
             }
         }
@@ -73,7 +73,7 @@ void nanoseconds_sleep(double seconds, bool sleep_with_abs_time)
             if (EINTR == errno) {
                 continue;
             } else {
-                perfm_warn("sleep failed, remaining %ld(ns)\n", rem.tv_sec * 1000000000 + rem.tv_nsec);
+                perfm_warn("sleep failed, remaining %ld(s) %ld(ns)\n", rem.tv_sec, rem.tv_nsec);
                 return;
             }
         }
@@ -98,17 +98,6 @@ std::string str_trim(const std::string &str, const char *charlist)
         return str;
     }
 
-    bool chmap[256] = { false };
-    auto chlen = charlist ? std::strlen(charlist) : 0;
-
-    for (size_t i = 0; i < chlen; ++i) {
-        chmap[static_cast<int>(charlist[i])] = true;
-    }
-
-    auto need_trim = [&chmap] (int ch) -> bool {
-        return chmap[ch];
-    };
-
     std::string::size_type s = 0, e = str.size() - 1;
 
     if (!charlist) {
@@ -119,7 +108,19 @@ std::string str_trim(const std::string &str, const char *charlist)
         while (e >= s && std::isspace(str[e])) {
             --e;
         }
+
     } else {
+        bool chmap[256] = { false };
+        auto chlen = std::strlen(charlist);
+
+        for (size_t i = 0; i < chlen; ++i) {
+            chmap[static_cast<int>(charlist[i])] = true;
+        }
+
+        auto need_trim = [&chmap] (int ch) -> bool {
+            return chmap[ch];
+        };
+
         while (s <= e && need_trim(str[s])) {
             ++s;
         }
@@ -191,7 +192,7 @@ std::vector<std::string> str_split(const std::string &str, const std::string &de
     return std::move(result);
 }
 
-bool write_file(const char *filp, void *buf, size_t sz)
+bool save_file(const char *filp, void *buf, size_t sz)
 {
     if (!filp || !buf || !sz) {
         return false;
@@ -199,8 +200,7 @@ bool write_file(const char *filp, void *buf, size_t sz)
 
     int fd = ::open(filp, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH); 
     if (fd == -1) {
-        char *err = strerror_r(errno, NULL, 0);
-        perfm_warn("failed to open %s, %s\n", filp, err);
+        perfm_warn("failed to open %s, %s\n", filp, strerror_r(errno, NULL, 0));
         return false;
     }
 
@@ -210,6 +210,7 @@ bool write_file(const char *filp, void *buf, size_t sz)
         if (nr >= 0) {
             buf = static_cast<char *>(buf) + nr;
             sz -= nr;
+            continue;
         }
 
         if (errno != EINTR) {
@@ -249,8 +250,8 @@ void *read_file(const char *filp, size_t *sz)
     }
     
     char *buf = static_cast<char *>(res);
-    size_t nr_read = 0;
-    size_t nr_remn = sb.st_size;
+    ssize_t nr_read = 0;
+    size_t  nr_remn = sb.st_size;
 
     while (nr_remn) {
         nr_read = ::read(fd, buf, nr_remn); 
@@ -287,7 +288,7 @@ size_t num_cpus_total()
     struct dirent **namelist; 
     int nr_dirent = 0;
 
-    nr_dirent = ::scandir("/sys/devices/system/cpu/", &namelist, is_cpu, 0);
+    nr_dirent = ::scandir("/sys/devices/system/cpu/", &namelist, is_cpu, NULL);
     if (nr_dirent < 0) {
         perfm_warn("failed to get the # of processors on this system\n");
         return 0;

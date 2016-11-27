@@ -95,14 +95,14 @@ double mround(double number, double multiple);
  *
  * Description:
  *     nanoseconds_sleep will ...
+ *
+ *     @seconds may *not* greater than the value which 'long int' can hold
  * 
- * TODO:
- *     sleep with ABS clock has not impled
  */
 void nanoseconds_sleep(double seconds, bool sleep_with_abs_time = false);
 
 /**
- * str_find - find the target string in the given string array
+ * str_find - find the target string in the given C style string array
  *
  * @argv  same as argv for main()
  * @argc  same as argc for main()
@@ -115,7 +115,6 @@ void nanoseconds_sleep(double seconds, bool sleep_with_abs_time = false);
  *
  */
 int str_find(char **argv, int argc, const char *trg);
-
 
 /**
  * str_split - split a string by string
@@ -137,7 +136,7 @@ int str_find(char **argv, int argc, const char *trg);
 std::vector<std::string> str_split(const std::string &str, const std::string &del, size_t limit = 0);
 
 /**
- * str_trim - remove space in both left and right of the given string
+ * str_trim - remove characters in both left and right of the given string
  *
  * @str       the string to trim
  * @charlist  the characters to trim
@@ -151,18 +150,18 @@ std::vector<std::string> str_split(const std::string &str, const std::string &de
 std::string str_trim(const std::string &str, const char *charlist = NULL);
 
 /**
- * save_file - save content specified by @buf & @sz to the file specified by @filp
+ * save_file - save content from @buf with @sz bytes to the file @filp
  *
  * @filp  filepath to save to
- * @buf   
- * @sz
+ * @buf   content to save (buf's size should greater than or equal to @sz) 
+ * @sz    # of bytes to save
  *
  * Return:
  *     true  - save succ
- *     false - save fail
+ *     false - save fail (due to some serious error)
  * 
  * Descritpion:
- *     if @filp does not exist, it will be created
+ *     if @filp does not exist, it will be created (as a regular file)
  *     if @filp already existed, it will be truncted first
  */
 bool save_file(const char *filp, void *buf, size_t sz);
@@ -189,15 +188,14 @@ void *read_file(const char *filp, size_t *sz = NULL);
  *     the number of processors installed on this system
  *
  * Description:
- *     this func return the number dirs named "cpuX" in "/sys/devices/system/cpu/" ('X' is the cpu number)
+ *     this func return the number of dirs named "cpuX" in "/sys/devices/system/cpu/" ('X' is the cpu number)
  *     
  *     in older vesion glibc or linux kernel, the _SC_NPROCESSORS_CONF *do* change when do cpu hotplug
  */
 size_t num_cpus_total();
 
-
 /**
- * cpu_frequency - get frequency for all online processor
+ * cpu_frequency - get frequency for all online processors
  *
  * Return:
  *     a map of <cpu, freq>, where cpu means processor id, freq means frequency in MHz
