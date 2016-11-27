@@ -237,4 +237,14 @@ void top::loop()
     }
 }
 
+//
+// how TSC was computed in Intel's emon:
+// 1 - TSC for a hyperthread/smt is the core/smt's maximum frequency (no turbo), this is a __constant__ value
+// 2 - TSC for a core is the summary of each smt's TSC belong to this core
+// 3 - TSC for a socket is the summary of each core's TSC belong to this socket
+// 4 - TSC for a system is the summary of each socket's TSC belong to this system
+//
+// TSC = frquency = Cycles per second
+//
+
 } /* namespace perfm */

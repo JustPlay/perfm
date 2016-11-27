@@ -69,7 +69,7 @@ void run_analyzer()
     perfm_fatal("TODO\n");
 }
 
-void run_top()
+void run_topper()
 {
     if (!perf_event_avail()) {
         perfm_fatal("perf_event NOT supported, exiting...\n");
@@ -162,7 +162,7 @@ int main(int argc, char **argv)
         break;
 
     case PERFM_TOP:
-        perfm::run_top();
+        perfm::run_topper();
         break;
 
     default:
