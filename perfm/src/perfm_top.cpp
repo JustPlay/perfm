@@ -244,7 +244,7 @@ void top::loop()
 // 3 - TSC for a socket is the summary of each core's TSC belong to this socket
 // 4 - TSC for a system is the summary of each socket's TSC belong to this system
 //
-// TSC = frquency = Cycles per second
+// TSC = frequency = Cycles per second
 //
 
 } /* namespace perfm */
