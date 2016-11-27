@@ -67,7 +67,7 @@ void top::fini()
     tcsetattr(0, TCSAFLUSH, &this->_termios);
 }
 
-void top::open(const std::string &cpulist)
+void top::open()
 {
     _nr_total_cpu = num_cpus_total();
 
@@ -78,22 +78,18 @@ void top::open(const std::string &cpulist)
     }
 
     // parse cpu list, if empty, select all available cpus
-    if (cpulist.empty()) {
+    if (perfm_options.cpu_list.empty()) {
         for (unsigned int cpu = 0; cpu < _nr_total_cpu; ++cpu) {
             do_set(cpu);
             ++_nr_select_cpu;
         }
     } else {
-        perfm_fatal("TODO\n");
+        parse_cpu_list(perfm_options.cpu_list);
     }
 
+    // get the frequency for each online cpu
     auto freq_list = cpu_frequency();
 
-    for (const auto &f : freq_list) {
-        fprintf(stderr, "%2d - %d\n", f.first, f.second); 
-    }
-
-    return;
     // open event for each selected cpu
     for (unsigned int c = 0, n = 0; n < _nr_select_cpu && c < _nr_total_cpu; ++c) {
         if (!is_set(c)) {
@@ -135,9 +131,49 @@ void top::close()
     }
 }
 
+void top::parse_cpu_list(const std::string &list)
+{
+    std::vector<std::string> slice = str_split(list, ",");
+
+    for (size_t i = 0; i < slice.size(); ++i) {
+        if (slice[i].empty()) {
+            continue;
+        }
+
+        size_t del_pos = slice[i].find("-");
+
+        if (del_pos == std::string::npos) {
+            int cpu;
+            try {
+                cpu = std::stoi(slice[i]);
+            } catch (const std::exception &e) {
+                perfm_warn("%s %s\n", e.what(), slice[i].c_str());
+                continue;
+            }
+
+            ++_nr_select_cpu;
+            do_set(cpu);
+        } else {
+            int from, to;
+            try {
+                from = std::stoi(slice[i]);
+                to   = std::stoi(slice[i].substr(del_pos + 1));
+            } catch (const std::exception &e) {
+                perfm_warn("%s %s\n", e.what(), slice[i].c_str());
+                continue;
+            }
+
+            for (int cpu = from; cpu <= to; ++cpu) {
+                ++_nr_select_cpu;
+                do_set(cpu);
+            }
+        }
+    }
+}
+
 void top::print(int cpu, double usr, double sys, double idle) const
 {
-    FILE *fp = stdout;
+    FILE *fp = stderr;
 
     if (perfm_options.batch_mode) {
         fprintf(fp, "Cpu%-2d - usr: %.2lf%%, sys: %.2lf%%, idle: %.2lf%%\n", cpu, usr, sys, idle); 
@@ -175,6 +211,10 @@ void top::loop()
         if (!perfm_options.batch_mode) {
             move(0, 0);
 
+            /* TODO */
+
+            refresh();
+        } else {
             for (size_t c = 0, n = 0; n < _nr_select_cpu && c < _nr_total_cpu; ++c) {
                 if (!is_set(c)) {
                     continue;
@@ -184,8 +224,8 @@ void top::loop()
 
                 cpu_ev(c)->read();
                 std::vector<event::ptr_t> elist = cpu_ev(c)->elist();
-                uint64_t usr_cycle = elist[0]->scale();
-                uint64_t sys_cycle = elist[1]->scale();
+                uint64_t usr_cycle = elist[0]->delta();
+                uint64_t sys_cycle = elist[1]->delta();
 
                 double usr  = 100.0 * usr_cycle / cpu_fr(c) * 1000000 * perfm_options.delay;
                 double sys  = 100.0 * sys_cycle / cpu_fr(c) * 1000000 * perfm_options.delay;
@@ -193,10 +233,6 @@ void top::loop()
 
                 this->print(cpu_id(c), usr, sys, idle);
             }
-
-            refresh();
-        } else {
-            /* TODO */
         }
     }
 }

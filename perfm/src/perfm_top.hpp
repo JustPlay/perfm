@@ -37,7 +37,7 @@ public:
         }
     }
 
-    void open(const std::string &cpu_list = "");
+    void open();
 
     void close();
 
@@ -77,6 +77,11 @@ private:
 
     void print(int, double, double, double) const;
 
+    //
+    // @cpulist must with the form: 1,2-4,6,8,9-10
+    //
+    void parse_cpu_list(const std::string &cpulist);
+
 private:
     const std::string _ev_list = "PERF_COUNT_HW_CPU_CYCLES:U,PERF_COUNT_HW_CPU_CYCLES:K";
 
@@ -89,7 +94,7 @@ private:
     size_t _nr_total_cpu  = 0;
 
     #define cpu_id(cpu) std::get<0>(_cpu_data[(cpu)]) // processor id
-    #define cpu_fr(cpu) std::get<1>(_cpu_data[(cpu)]) // processor frequency (from /proc/cpuinfo)
+    #define cpu_fr(cpu) std::get<1>(_cpu_data[(cpu)]) // processor frequency (from /proc/cpuinfo, MHz)
     #define cpu_ev(cpu) std::get<2>(_cpu_data[(cpu)]) // event group binded to this processor
 
     struct termios _termios;

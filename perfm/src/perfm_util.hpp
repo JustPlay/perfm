@@ -123,8 +123,10 @@ int str_find(char **argv, int argc, const char *trg);
  * @str    the input string to split
  * @del    the boundary string
  * @limit  if set and positive, the returned std::vector will contain a maximum of @limit + 1 
- *         elements with the last element containing the rest of @str
- *         if the @limit parameter is zero or default, then it is treated as @str.size()
+ *         elements with the last element containing the rest of @str (if it has ...)
+ *         
+ *         if the @limit parameter is zero or default, then it is treated 
+ *         as @str.size() (as large as possible)
  *
  * Return:
  *     a std::vector of strings created by splitting the @str parameter on boundaries formed by the @del

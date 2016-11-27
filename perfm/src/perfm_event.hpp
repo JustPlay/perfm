@@ -22,16 +22,31 @@
 #include <perfmon/pfmlib_perf_event.h>
 
 /*
- * 1. Request timing information because event or/and pmu may be multiplexed and 
- *    thus it may not count all the time.
- * 
- *    The scaling information will be used to scale the raw count as if the event 
- *    had run all along.
+ * https://perf.wiki.kernel.org/index.php/Tutorial
  *
- *    The scale rules are list bellow:
+ * 1. If there are more events than counters, the kernel uses time 
+ *    multiplexing (round-robin, switch frequency = HZ, generally 100 or 1000), to 
+ *    give each event a chance to access the monitoring hardware.
+ *    
+ *    Multiplexing only applies to PMU events. With multiplexing, an event is 
+ *    not measured all the time. At the end of the run, the tool scales the 
+ *    count based on total time enabled vs time running. The actual formula is:
+ *
+ *    - final_count = raw_count * time_enabled / time_running
+ *
  *    - TIME_RUNNING <= TIME_ENABLED
  *    - TIME_RUNNING != 0 
  *    - RAW_COUNT * TIME_ENABLED / TIME_RUNNING
+ *
+ *    This provides an __estimate__ of what the count would have been, had the
+ *    event been measured during the entire run.
+ *
+ *    To avoid scaling (in the presence of only one active perf_event user), one
+ *    can try and reduce the number of events.
+ *
+ *    PMU's generic counters can measure any events. 
+ *          fixed counters can only measure one event. 
+ *          some counters may be reserved for special purposes, such as a watchdog timer.
  *
  * 2. The read format *without* PERF_FORMAT_GROUP:
  *    struct {

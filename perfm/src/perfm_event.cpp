@@ -136,6 +136,15 @@ uint64_t event::delta() const
     return static_cast<uint64_t>((curr[0] - prev[0]) * (curr[1] - prev[1]) / (curr[2] - prev[2]));
 }
 
+double event::ratio() const
+{
+    if (_pmu_curr[1] == 0) {
+        return 0;
+    } 
+
+    return 1.0 * _pmu_curr[2] / _pmu_curr[1];
+}
+
 uint64_t event::scale() const
 {
     uint64_t res = 0;

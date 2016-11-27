@@ -171,8 +171,10 @@ std::vector<std::string> str_split(const std::string &str, const std::string &de
         limit = str.size();
     }
 
+    // find_first_of - Finds the first __character__ equal to one of the characters in the given character sequence
+    // find - Finds the first __substring__ equal to the given character sequence
     while (limit && search < str.size()) {
-        target = str.find_first_of(del, search);
+        target = str.find(del, search);
         if (target != std::string::npos) {
             result.push_back(str.substr(search, target - search));
             search = --limit ? target + del.size() : target;
@@ -320,9 +322,7 @@ std::map<int, int> cpu_frequency()
             continue;
         }
 
-        if (line.find_first_of("processor") != std::string::npos) {
-            fprintf(stderr, "%s\n", line.c_str());
-            continue;
+        if (line.find("processor") != std::string::npos) {
 
             if (!pair) {
                 perfm_fatal("processor & cpu MHz should appear in pair, check /proc/cpuinfo\n");
@@ -344,7 +344,7 @@ std::map<int, int> cpu_frequency()
             continue;
         }
 
-        if (line.find_first_of("cpu MHz") != std::string::npos) {
+        if (line.find("cpu MHz") != std::string::npos) {
             if (pair) {
                 perfm_fatal("processor & cpu MHz should appear in pair, check /proc/cpuinfo\n");
             }

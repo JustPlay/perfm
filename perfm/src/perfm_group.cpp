@@ -117,23 +117,23 @@ int group::close() {
 size_t group::read()
 {
     if (perfm_options.rdfmt_evgroup) {
-        size_t num_events = this->size();
-        size_t siz_buffer = sizeof(uint64_t) * (3 + num_events);
+        size_t nr_events = this->size();
+        size_t sz_buffer = sizeof(uint64_t) * (3 + nr_events);
 
-        uint64_t *val = new uint64_t[siz_buffer];
+        uint64_t *val = new uint64_t[sz_buffer];
         if (!val) {
-            perfm_fatal("memory allocate failed for %zu bytes\n", siz_buffer);
+            perfm_fatal("memory allocate failed for %zu bytes\n", sz_buffer);
         }
 
-        ssize_t ret = ::read(this->leader()->perf_fd(), val, siz_buffer);
+        ssize_t ret = ::read(this->leader()->perf_fd(), val, sz_buffer);
         if (ret == -1) {
             perfm_fatal("%s\n", "error occured reading pmu counters");
         } 
-        if (ret < siz_buffer) {
-            perfm_warn("read events counters, need %zu bytes, actually %zd bytes\n", siz_buffer, ret);
+        if (ret < sz_buffer) {
+            perfm_warn("read events counters, need %zu bytes, actually %zd bytes\n", sz_buffer, ret);
         }
 
-        for (size_t i = 0; i < num_events; ++i) {
+        for (size_t i = 0; i < nr_events; ++i) {
             _elist[i]->pmu_cntr(val[3 + i], val[1], val[2]);
         }
 
@@ -141,17 +141,17 @@ size_t group::read()
             delete[] val;
         }
 
-        return num_events;
+        return nr_events;
 
     } else {
-        size_t num_events = 0; /* # of events which has been read succesfully */
+        size_t nr_events = 0; /* # of events which has been read succesfully */
 
         for (auto iter = _elist.begin(); iter != _elist.end(); ++iter) {
             if ((*iter)->read()) {
-                ++num_events;
+                ++nr_events;
             }
         }
-        return num_events;
+        return nr_events;
     }
 }
 
