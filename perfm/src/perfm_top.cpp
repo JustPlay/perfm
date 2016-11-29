@@ -14,10 +14,44 @@
 #include <memory>
 #include <utility>
 #include <new>
+#include <random>
 
 #include <unistd.h>
+#include <signal.h>
+
+namespace {
+
+volatile sig_atomic_t should_quit = 0; // SIGINT
+volatile sig_atomic_t resize_wsiz = 0; // SIGWINCH
+
+void sighandler(int signo)
+{
+    switch (signo) {
+    case SIGINT:
+        should_quit = 1;
+        break;
+
+    case SIGWINCH:
+        /* TODO */
+        break;
+    }
+}
+
+} /* namespace */
 
 namespace perfm {
+
+// The rdtsc instruction is used to move the 64-bit TSC counter into the registers EDX:EAX.
+// Below is a piece of code that will return the 64-bit wide counter value.s
+// Note that this should work on both i386 and x86_64 architectures.
+unsigned long long int rdtsc()
+{
+    unsigned eax, edx;
+
+    __asm__ volatile("rdtsc" : "=a" (eax), "=d" (edx));
+
+    return ((unsigned long long)eax) | (((unsigned long long)edx) << 32);
+}
 
 top::ptr_t top::alloc()
 {
@@ -35,7 +69,15 @@ top::ptr_t top::alloc()
 void top::init()
 {
     // setup signal handlers
+    struct sigaction act;
 
+    memset(&act, 0, sizeof(act));
+    sigemptyset(&act.sa_mask);
+    act.sa_handler = sighandler;
+
+    if (sigaction(SIGINT, &act, NULL) != 0) {
+        perfm_warn("failed to install sighander for SIGINT\n");
+    }
 
     // setup display screen 
     if (!perfm_options.batch_mode) {
@@ -127,7 +169,7 @@ void top::close()
         }
         
         ++n;
-        cpu_ev(c)->close();
+        cpu_pmu(c)->close();
     }
 }
 
@@ -171,14 +213,41 @@ void top::parse_cpu_list(const std::string &list)
     }
 }
 
-void top::print(int cpu, double usr, double sys, double idle) const
+void top::print(double seconds) const
+{
+    for (size_t c = 0, n = 0; n < _nr_select_cpu && c < _nr_total_cpu; ++c) {
+        if (!is_set(c)) {
+            continue;
+        }
+        ++n;
+    
+        uint64_t delta_cycle = seconds * cpu_mhz(c) * 1000000;
+
+        cpu_pmu(c)->read();
+        std::vector<event::ptr_t> elist = cpu_pmu(c)->elist();
+        uint64_t usr_cycle_delta = elist[U_CYCLE_EID]->delta();
+        uint64_t sys_cycle_delta = elist[K_CYCLE_EID]->delta();
+
+        double usr  = 100.0 * usr_cycle_delta / delta_cycle;
+        double sys  = 100.0 * sys_cycle_delta / delta_cycle;
+
+        usr = usr > 100 ? 100 : usr;
+        sys = sys > 100 ? 100 : sys;
+
+        double idle = usr + sys > 100 ? 0 : 100 - usr - sys;
+
+        print(cpu_num(c), cpu_mhz(c) / 1000.0, usr, sys, idle);
+    }
+}
+
+void top::print(int cpu, double freq, double usr, double sys, double idle) const
 {
     FILE *fp = stderr;
 
     if (perfm_options.batch_mode) {
-        fprintf(fp, "Cpu%-2d - usr: %.2lf%%, sys: %.2lf%%, idle: %.2lf%%\n", cpu, usr, sys, idle); 
+        fprintf(fp, "Cpu%-2d : %.1fGHz,  usr: %5.1f%%,  sys: %5.1f%%,  idle: %5.1f%%\n", cpu, freq, usr, sys, idle); 
     } else {
-        printw("Cpu%-2d - usr: %.2lf%%, sys: %.2lf%%, idle: %.2lf%%\n", cpu, usr, sys, idle); 
+        printw(     "Cpu%-2d : %.1fGHz,  usr: %5.1f%%,  sys: %5.1f%%,  idle: %5.1f%%\n", cpu, freq, usr, sys, idle); 
     }
 }
 
@@ -186,65 +255,46 @@ void top::loop()
 {
     int max = perfm_options.max <= 0 ? INT_MAX : perfm_options.max;
 
-    FILE *fp = stdout;
-
     // start counting ...
     for (size_t c = 0, n = 0; n < _nr_select_cpu && c < _nr_total_cpu; ++c) {
         if (is_set(c)) {
-            cpu_ev(c)->start();
+            cpu_pmu(c)->start();
             ++n;
         }
     }
 
     // skip the first few ...
     for (size_t c = 0, n = 0; n < _nr_select_cpu && c < _nr_total_cpu; ++c) {
-        if (is_set(c)) {
-            cpu_ev(c)->read();
-            ++n;
+        if (!is_set(c)) {
+            continue;
         }
+        ++n;
+    
+        cpu_pmu(c)->read();
     }
 
+    // 1. std::random_device is a uniformly-distributed __integer random number generator__ 
+    //    that produces non-deterministic random numbers.
+    // 2. std::random_device may be implemented in terms of an implementation-defined pseudo-random
+    //    number engine if a non-deterministic source (e.g. a hardware device) is not available to the
+    //    implementation. In this case each std::random_device object may generate the same number sequence.  
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<double> dis(-0.01, 0.01); /* [-10ms, 10ms) */
+
     // display ...
-    while (max--) {
-        nanoseconds_sleep(perfm_options.delay); 
+    while (max-- && !should_quit) {
+        double seconds = perfm_options.delay - dis(gen);
+        nanoseconds_sleep(seconds); 
 
         if (!perfm_options.batch_mode) {
             move(0, 0);
-
-            /* TODO */
-
+            print(seconds);
             refresh();
         } else {
-            for (size_t c = 0, n = 0; n < _nr_select_cpu && c < _nr_total_cpu; ++c) {
-                if (!is_set(c)) {
-                    continue;
-                }
-
-                ++n;
-
-                cpu_ev(c)->read();
-                std::vector<event::ptr_t> elist = cpu_ev(c)->elist();
-                uint64_t usr_cycle = elist[0]->delta();
-                uint64_t sys_cycle = elist[1]->delta();
-
-                double usr  = 100.0 * usr_cycle / cpu_fr(c) * 1000000 * perfm_options.delay;
-                double sys  = 100.0 * sys_cycle / cpu_fr(c) * 1000000 * perfm_options.delay;
-                double idle = 100.0 - usr - sys;
-
-                this->print(cpu_id(c), usr, sys, idle);
-            }
+            print(seconds);
         }
     }
 }
-
-//
-// how TSC was computed in Intel's emon:
-// 1 - TSC for a hyperthread/smt is the core/smt's maximum frequency (no turbo), this is a __constant__ value
-// 2 - TSC for a core is the summary of each smt's TSC belong to this core
-// 3 - TSC for a socket is the summary of each core's TSC belong to this socket
-// 4 - TSC for a system is the summary of each socket's TSC belong to this system
-//
-// TSC = frequency = Cycles per second
-//
 
 } /* namespace perfm */

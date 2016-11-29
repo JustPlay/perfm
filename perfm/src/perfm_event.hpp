@@ -21,6 +21,19 @@
 #include <perfmon/perf_event.h>
 #include <perfmon/pfmlib_perf_event.h>
 
+// -----------------------------------------------------------------------------------------------------
+// | EventName(Intel)           | Cntr Type | EventName(intel)          | EventName(libpfm4)           |
+// |---------------------------------------------------------------------------------------------------|
+// | INST_RETIRED.ANY           | fixed (1) | INST_RETIRED.ANY_P        | INST_RETIRED:ANY_P           |
+// |---------------------------------------------------------------------------------------------------|
+// | CPU_CLK_UNHALTED.THREAD    | fixed (2) | CPU_CLK_UNHALTED.THREAD_P | CPU_CLK_UNHALTED:THREAD_P    |
+// |---------------------------------------------------------------------------------------------------|
+// | CPU_CLK_UNHALTED.REF_TSC   | fixed (3) | CPU_CLK_UNHALTED.REF_XCLK | CPU_CLK_UNHALTED:REF_XCLK    |
+// |---------------------------------------------------------------------------------------------------|
+// | 
+// -----------------------------------------------------------------------------------------------------
+
+
 /*
  * https://perf.wiki.kernel.org/index.php/Tutorial
  *
@@ -172,7 +185,7 @@ class event : public perf_event {
 
 public:
     using ptr_t = std::shared_ptr<event>;
-    using pmu_cntr_t = std::tuple<uint64_t, uint64_t, uint64_t>; /* 0: RAW PMU COUNT, 1: TIME_ENABLED, 2: TIME_RUNNING */
+    using pmu_cntr_t = std::tuple<uint64_t, uint64_t, uint64_t>; /* 0: raw PMU count, 1: time_enabled, 2: time_running */
 
 public:
     static ptr_t alloc();
@@ -234,9 +247,7 @@ public:
         return this->_plm;
     }
 
-    pmu_cntr_t pmu_cntr() const {
-        return std::make_tuple(_pmu_curr[0], _pmu_curr[1], _pmu_curr[2]);
-    }
+    pmu_cntr_t pmu_cntr() const;
 
     void name(const std::string &nam) {
         this->_nam = nam;
@@ -246,23 +257,21 @@ public:
         this->_plm = plm;
     }
 
-    void pmu_cntr(const pmu_cntr_t &pmu) {
-       pmu_cntr(std::get<0>(pmu), std::get<1>(pmu), std::get<2>(pmu));
+    void pmu_cntr(const pmu_cntr_t &val) {
+       pmu_cntr(std::get<0>(val), std::get<1>(val), std::get<2>(val));
     }
 
-    void pmu_cntr(uint64_t pmu, uint64_t time_enabled, uint64_t time_running) {
-        _pmu_prev[0] = _pmu_curr[0];
-        _pmu_prev[1] = _pmu_curr[1];
-        _pmu_prev[2] = _pmu_curr[2];
-
-        _pmu_curr[0] = pmu;
-        _pmu_curr[1] = time_enabled;
-        _pmu_curr[2] = time_running;
-    }
+    void pmu_cntr(uint64_t raw_val, uint64_t tim_ena, uint64_t tim_run);
 
 private:
-    uint64_t _pmu_curr[3]; // 0: RAW PMU COUNT, 1: TIME_ENABLED, 2: TIME_RUNNING
-    uint64_t _pmu_prev[3]; // 0: RAW PMU COUNT, 1: TIME_ENABLED, 2: TIME_RUNNING 
+    uint64_t _pmu_vals[4] = { 0, 1, 1, 0 };   /* initialized with 0, 1, 1, 0 just to 
+                                               * avoid the warning when do first read
+                                               */
+
+    #define raw_pmu_cntr() this->_pmu_vals[0] /* 0: raw PMU value */
+    #define time_enabled() this->_pmu_vals[1] /* 1: time_enabled  */
+    #define time_running() this->_pmu_vals[2] /* 2: time_running  */
+    #define prev_pmu_val() this->_pmu_vals[3] /* 3: previous _scaled_ pmu value */
 
     std::string _nam;   /* event string name, used by libpfm4 */
     unsigned long _plm; /* privilege level mask, used by libpfm4 */

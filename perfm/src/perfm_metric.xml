@@ -1,0 +1,385 @@
+<?xml version="1.0"?>
+<perfm>
+	<metric name="metric_CPU operating frequency (in GHz)">
+        <event alias="a">CPU_CLK_UNHALTED.THREAD</event>
+		<event alias="b">CPU_CLK_UNHALTED.REF_TSC</event>
+		<constant alias="c">system.tsc_freq</constant>      
+		<formula>(a/b*c)/1000000000</formula>
+	</metric>
+
+	<metric name="metric_CPU utilization %">
+		<event alias="a">CPU_CLK_UNHALTED.REF_TSC</event>
+		<event alias="b">TSC</event>
+		<formula>100*a/b</formula>
+	</metric>
+
+	<metric name="metric_CPU utilization% in kernel mode">
+		<event alias="a">CPU_CLK_UNHALTED.REF_TSC:SUP</event>
+		<event alias="b">TSC</event>
+		<formula>100*a/b</formula>
+	</metric>
+
+    <metric name="metric_CPI">
+        <throughput-metric-name>metric_cycles per txn</throughput-metric-name>
+        <event alias="a">CPU_CLK_UNHALTED.THREAD</event>
+        <event alias="b">INST_RETIRED.ANY</event>
+        <formula>a/b</formula>
+    </metric>
+
+    <metric name="metric_kernel_CPI">
+        <event alias="a">CPU_CLK_UNHALTED.THREAD:SUP</event>
+        <event alias="b">INST_RETIRED.ANY:SUP</event>
+        <formula>a/b</formula>
+    </metric>
+	
+   <metric name="metric_EMON event mux reliability% (>95% good)">
+        <event alias="a">CPU_CLK_UNHALTED.THREAD_P</event>
+        <event alias="b">CPU_CLK_UNHALTED.THREAD</event>
+        <formula>100*(((a-b)&lt;0)?(a/b):(b/a))</formula>
+    </metric>
+
+	<metric name="metric_% cycles uops retired">
+        <event alias="a">UOPS_RETIRED.ALL:c1</event>
+        <event alias="b">CPU_CLK_UNHALTED.THREAD</event>
+        <formula>100*a/b</formula>
+    </metric>
+	
+	<metric name="metric_L2 MPI (includes code+data+rfo w/ prefetches)">
+        <throughput-metric-name>metric_L2 misses per txn (includes code+data+rfo w/ prefetches)</throughput-metric-name>
+		<event alias="a">L2_LINES_IN.ALL</event>
+		<event alias="b">INST_RETIRED.ANY</event>
+		<formula>a/b</formula>
+	</metric>
+	
+ 	<metric name="metric_L2 demand data read MPI">
+        <throughput-metric-name>metric_L2 demand data read misses per txn</throughput-metric-name>
+		<event alias="a">MEM_LOAD_UOPS_RETIRED.L2_MISS</event>
+		<event alias="b">INST_RETIRED.ANY</event>
+		<formula>a/b</formula>
+	</metric>
+	
+	<metric name="metric_L2 demand code MPI">
+        <throughput-metric-name>metric_L2 demand code misses per txn</throughput-metric-name>
+		<event alias="a">L2_RQSTS.CODE_RD_MISS</event>
+		<event alias="b">INST_RETIRED.ANY</event>
+		<formula>a/b</formula>
+	</metric>
+	
+	<metric name="metric_LLC MPI (includes code+data+rfo w/ prefetches)">
+        <throughput-metric-name>metric_LLC misses per txn (includes code+data+rfo w/ prefetches)</throughput-metric-name>
+		<event alias="a">UNC_C_LLC_LOOKUP.ANY:state=0x1</event>
+    <event alias="b">UNC_C_TOR_INSERTS.MISS_OPCODE:opc=0x1c8:tid=0x3e</event>
+    <event alias="c">UNC_C_TOR_INSERTS.MISS_OPCODE:opc=0x19e</event>
+		<event alias="d">INST_RETIRED.ANY</event>
+		<formula>(a-b-c)/d</formula>
+	</metric>
+	
+    <metric name="metric_LLC writebacks per instr">
+        <throughput-metric-name>metric_LLC writebacks per txn</throughput-metric-name>
+        <event alias="a">UNC_C_LLC_VICTIMS.M_STATE</event>
+		<event alias="b">INST_RETIRED.ANY</event>
+		<formula>a/b</formula>
+    </metric>
+
+	<metric name="metric_NUMA %_Reads addressed to local DRAM">
+		<event alias="a">UNC_H_REQUESTS.READS_LOCAL</event>
+		<event alias="b">UNC_H_REQUESTS.READS</event>
+		<formula>100*a/b</formula>
+	</metric>
+
+	<metric name="metric_NUMA %_Reads addressed to remote DRAM">
+		<event alias="a">UNC_H_REQUESTS.READS_LOCAL</event>
+		<event alias="b">UNC_H_REQUESTS.READS</event>
+		<formula>100*(b-a)/b</formula>
+	</metric>
+	
+    <metric name="metric_uncore frequency GHz">
+        <event alias="a">UNC_C_CLOCKTICKS</event>
+        <constant alias="b">system.sockets[0].cores.count</constant>
+        <constant alias="c">system.sockets[1].cores.count</constant>
+        <formula>a/(b+c)/1000000000</formula>
+        <formula socket="0">a[0]/b/1000000000</formula>
+        <formula socket="1">a[1]/c/1000000000</formula>
+    </metric>
+
+    <metric name="metric_QPI speed - GT/s">
+        <event alias="a">UNC_Q_CLOCKTICKS</event>
+        <formula>a/8*8/1000000000</formula>
+        <formula socket="0">a[0]/4*8/1000000000</formula>
+        <formula socket="1">a[1]/4*8/1000000000</formula>
+    </metric>
+
+    <metric name="metric_QPI Data transmit BW (MB/sec) (only data)">
+        <event alias="a">UNC_Q_TxL_FLITS_G0.DATA</event>
+        <formula>a*8/1000000</formula>
+    </metric>
+
+    <metric name="metric_QPI total transmit BW (MB/sec) (includes control)">
+        <event alias="a">UNC_Q_TxL_FLITS_G0.DATA</event>
+        <event alias="b">UNC_Q_TxL_FLITS_G0.NON_DATA</event>
+        <formula>(a+b)*8/1000000</formula>
+    </metric>
+
+    <metric name="metric_QPI Transmit utilization_% (includes control)">
+        <event alias="a">UNC_Q_CLOCKTICKS</event>
+        <event alias="b">UNC_Q_TxL_FLITS_G0.DATA</event>
+        <event alias="c">UNC_Q_TxL_FLITS_G0.NON_DATA</event>
+        <formula>100*(b+c)/a</formula>
+    </metric>
+
+    <!-- Assumed 4 memory channels populated in each socket -->
+    <!--
+        <metric name="metric_DDR data rate (MT/sec)">
+            <event alias="a">UNC_M_CLOCKTICKS</event>
+            <constant alias="b"> system.sockets.count </constant>
+            <formula>2*a/(b*4)/1000000</formula>
+            <formula socket="0">2*a[0]/4/1000000</formula>
+            <formula socket="1">2*a[1]/4/1000000</formula>
+        </metric>
+    -->
+
+    <!-- Assumed 2 memory channels populated in each socket -->
+    <metric name="metric_DDR data rate (MT/sec)">
+        <event alias="a">UNC_M_CLOCKTICKS</event>
+        <constant alias="b"> system.sockets.count </constant>
+        <formula>2*a/(b*2)/1000000</formula>
+        <formula socket="0">2*a[0]/2/1000000</formula>
+        <formula socket="1">2*a[1]/2/1000000</formula>
+    </metric>
+
+    <metric name="metric_memory bandwidth read (MB/sec)">
+        <event alias="a">UNC_M_CAS_COUNT.RD</event>
+        <formula>a*64/1000000</formula>
+    </metric>
+
+    <metric name="metric_memory bandwidth write (MB/sec)">
+        <event alias="a">UNC_M_CAS_COUNT.WR</event>
+        <formula>a*64/1000000</formula>
+    </metric>
+
+    <metric name="metric_memory bandwidth total (MB/sec)">
+        <event alias="a">UNC_M_CAS_COUNT.RD</event>
+        <event alias="b">UNC_M_CAS_COUNT.WR</event>
+        <formula>(a+b)*64/1000000</formula>
+    </metric>
+
+    <metric name="metric_IO_bandwidth_disk_or_network_writes (MB/sec)">
+        <event alias="a">UNC_C_TOR_INSERTS.OPCODE:opc=0x19e</event>
+        <formula>a*64/1000000</formula>
+    </metric>
+
+    <metric name="metric_IO_bandwidth_disk_or_network_reads (MB/sec)">
+        <event alias="a">UNC_C_TOR_INSERTS.OPCODE:opc=0x1c8:tid=0x3e</event>
+        <event alias="b">UNC_C_TOR_INSERTS.OPCODE:opc=0x180:tid=0x3e</event>
+        <formula>(a+b)*64/1000000</formula>
+    </metric>
+
+    <metric name="metric_IO_number of partial PCI writes per sec">
+        <event alias="a">UNC_C_TOR_INSERTS.OPCODE:opc=0x180:tid=0x3e</event>
+        <!-- +0 is added to work-around a bug -->
+        <formula>a+0</formula>
+    </metric>
+
+    <metric name="metric_IO_write cache miss(disk/network reads) bandwidth (MB/sec)">
+        <event alias="a">UNC_C_TOR_INSERTS.MISS_OPCODE:opc=0x1c8:tid=0x3e</event>
+        <event alias="b">UNC_C_TOR_INSERTS.MISS_OPCODE:opc=0x180:tid=0x3e</event>
+        <formula>(a+b)*64/1000000</formula>
+    </metric>
+
+    <metric name="metric_IO_read cache miss(disk/network writes) bandwidth (MB/sec)">
+        <event alias="a">UNC_C_TOR_INSERTS.MISS_OPCODE:opc=0x19e</event>
+        <formula>a*64/1000000</formula>
+    </metric>
+
+    <metric name="metric_IONUMA % disk/network reads addressed to local memory">
+        <event alias="a">UNC_C_TOR_INSERTS.LOCAL_OPCODE:opc=0x1c8:tid=0x3e</event>
+        <event alias="b">UNC_C_TOR_INSERTS.REMOTE_OPCODE:opc=0x1c8:tid=0x3e</event>
+        <formula>100*a/(a+b)</formula>
+    </metric>
+
+    <metric name="metric_IONUMA % disk/network writes addressed to local memory">
+        <event alias="a">UNC_C_TOR_INSERTS.LOCAL_OPCODE:opc=0x19e</event>
+        <event alias="b">UNC_C_TOR_INSERTS.REMOTE_OPCODE:opc=0x19e</event>
+        <formula>100*a/(a+b)</formula>
+    </metric>
+
+    <metric name="metric_MMIO reads per sec">
+        <event alias="a">UNC_C_TOR_INSERTS.MISS_OPCODE:opc=0x187:nc=1</event>
+        <formula>a+0</formula>
+    </metric>
+
+    <metric name="metric_MMIO writes per sec">
+        <event alias="a">UNC_C_TOR_INSERTS.MISS_OPCODE:opc=0x18f:nc=1</event>
+        <formula>a+0</formula>
+    </metric>
+
+    <metric name="metric_memory reads vs. all requests">
+        <event alias="a">UNC_M_CAS_COUNT.RD</event>
+        <event alias="b">UNC_M_CAS_COUNT.WR</event>
+        <formula>a/(a+b)</formula>
+    </metric>
+
+    <metric name="metric_memory Page Empty vs. all requests">
+        <event alias="a">UNC_M_PRE_COUNT.RD:u0xc</event>
+        <event alias="c">UNC_M_PRE_COUNT.PAGE_MISS</event>
+        <event alias="d">UNC_M_CAS_COUNT.RD</event>
+        <event alias="e">UNC_M_CAS_COUNT.WR</event>
+        <formula>(a-c)/(d+e)</formula>
+    </metric>
+
+    <metric name="metric_memory Page Misses vs. all requests">
+        <event alias="b">UNC_M_PRE_COUNT.PAGE_MISS</event>
+        <event alias="c">UNC_M_CAS_COUNT.RD</event>
+        <event alias="d">UNC_M_CAS_COUNT.WR</event>
+        <formula>b/(c+d)</formula>
+    </metric>
+
+    <metric name="metric_memory Page Hits vs. all requests">
+        <event alias="a">UNC_M_PRE_COUNT.RD:u0xc</event>
+        <event alias="c">UNC_M_CAS_COUNT.RD</event>
+        <event alias="d">UNC_M_CAS_COUNT.WR</event>
+        <formula>1-(a/(c+d))</formula>
+    </metric>
+
+	<metric name="metric_DRAM power (watts)">
+		<event alias="a">FREERUN_DRAM_ENERGY_STATUS</event>
+		<formula>a*15.3/1000000</formula>
+	</metric>
+
+	<metric name="metric_package power (watts)">
+		<event alias="a">FREERUN_PKG_ENERGY_STATUS</event>
+		<formula>a*61/1000000</formula>
+	</metric>
+
+	<metric name="metric_TMAM_Info_CoreIPC">
+        <event alias="a">INST_RETIRED.ANY</event>
+		<event alias="b">CPU_CLK_UNHALTED.THREAD_ANY</event>
+		<constant alias="threads">system.sockets[0][0].size</constant>      
+		<formula>(a/(b/threads))</formula>
+	</metric>	
+	
+	<metric name="metric_TMAM_Info_Memory Level Parallelism">
+		<event alias="a">L1D_PEND_MISS.PENDING</event>
+		<event alias="b">L1D_PEND_MISS.PENDING_CYCLES:amt1</event>		
+		<constant alias="threads">system.sockets[0][0].size</constant>      
+		<formula>(a/(b/threads))</formula>
+	</metric>	
+
+	<metric name="metric_TMAM_Frontend_Bound(%)">
+		<event alias="a">CPU_CLK_UNHALTED.THREAD_ANY</event>
+		<event alias="c">IDQ_UOPS_NOT_DELIVERED.CORE</event>
+		<constant alias="threads">system.sockets[0][0].size</constant>      
+		<formula>100*c/(4*(a/threads))</formula>
+	</metric>
+
+	<metric name="metric_TMAM_..Frontend_Latency(%)">
+		<event alias="a">CPU_CLK_UNHALTED.THREAD_ANY</event>
+		<event alias="c">IDQ_UOPS_NOT_DELIVERED.CYCLES_0_UOPS_DELIV.CORE</event>
+		<constant alias="threads">system.sockets[0][0].size</constant>      
+		<formula>100*c/(a/threads)</formula>
+	</metric>
+	
+	<metric name="metric_TMAM_..Frontend_Bandwidth(%)">
+		<event alias="a">CPU_CLK_UNHALTED.THREAD_ANY</event>
+		<event alias="c">IDQ_UOPS_NOT_DELIVERED.CORE</event>
+		<event alias="d">IDQ_UOPS_NOT_DELIVERED.CYCLES_0_UOPS_DELIV.CORE</event>		
+		<constant alias="threads">system.sockets[0][0].size</constant>      
+		<formula>100*(c-4*d)/(4*(a/threads))</formula>
+	</metric>
+
+    <metric name="metric_TMAM_Bad_Speculation(%)">
+        <event alias="a">UOPS_ISSUED.ANY</event>
+        <event alias="b">UOPS_RETIRED.RETIRE_SLOTS</event>
+        <event alias="c">INT_MISC.RECOVERY_CYCLES_ANY</event>
+        <event alias="d">CPU_CLK_UNHALTED.THREAD_ANY</event>
+		<constant alias="threads">system.sockets[0][0].size</constant>      
+        <formula>100*(a-b+(4*c/threads))/(4*d/threads)</formula>
+    </metric>
+
+	<metric name="metric_TMAM_Backend_bound(%)">
+		<event alias="a">IDQ_UOPS_NOT_DELIVERED.CORE</event>
+		<event alias="b">UOPS_ISSUED.ANY</event>
+		<event alias="c">INT_MISC.RECOVERY_CYCLES_ANY</event>
+        <event alias="d">CPU_CLK_UNHALTED.THREAD_ANY</event>
+        <event alias="e">UOPS_RETIRED.RETIRE_SLOTS</event>
+		<constant alias="threads">system.sockets[0][0].size</constant>      
+		<formula>100-(100*(b-e+4*(c/threads)+a+e)/(4*d/threads))</formula>
+	</metric>
+
+	<metric name="metric_TMAM_..Memory_Bound(%)">
+		<event alias="a">IDQ_UOPS_NOT_DELIVERED.CORE</event>
+		<event alias="b">UOPS_ISSUED.ANY</event>
+		<event alias="c">INT_MISC.RECOVERY_CYCLES_ANY</event>
+        <event alias="d">CPU_CLK_UNHALTED.THREAD_ANY</event>
+        <event alias="e">UOPS_RETIRED.RETIRE_SLOTS</event>
+        <event alias="f">CYCLE_ACTIVITY.STALLS_MEM_ANY</event>
+        <event alias="g">RESOURCE_STALLS.SB</event>
+        <event alias="h">CYCLE_ACTIVITY.STALLS_TOTAL</event>
+        <event alias="j">UOPS_EXECUTED.CYCLES_GE_1_UOP_EXEC</event>
+        <event alias="k">UOPS_EXECUTED.CYCLES_GE_2_UOPS_EXEC</event>
+        <event alias="m">UOPS_EXECUTED.CYCLES_GE_3_UOPS_EXEC</event>
+		<event alias="n">IDQ_UOPS_NOT_DELIVERED.CYCLES_0_UOPS_DELIV.CORE</event>
+        <event alias="p">CPU_CLK_UNHALTED.THREAD</event>
+        <event alias="q">INST_RETIRED.ANY</event>
+        <event alias="r">RS_EVENTS.EMPTY_CYCLES</event>
+		<constant alias="threads">system.sockets[0][0].size</constant>      
+		<formula>100*(1-((b-e+4*(c/threads)+a+e)/(4*d/threads)))*(f+g)/(h+j-(((q/p)&gt;1.8)?m:k)-(((n/d)&gt;0.1)?r:0)+g)</formula>
+	</metric>
+ 
+	<metric name="metric_TMAM_....L1_Bound(%)">
+ 		<event alias="a">CYCLE_ACTIVITY.STALLS_MEM_ANY</event>
+        <event alias="b">CYCLE_ACTIVITY.STALLS_L1D_MISS</event>
+        <event alias="c">CPU_CLK_UNHALTED.THREAD</event>
+		<formula>100*(a-b)/c</formula>
+    </metric>
+
+	<metric name="metric_TMAM_....L2_Bound(%)">
+        <event alias="a">CYCLE_ACTIVITY.STALLS_L1D_MISS</event>
+        <event alias="b">CYCLE_ACTIVITY.STALLS_L2_MISS</event>
+        <event alias="c">CPU_CLK_UNHALTED.THREAD</event>
+		<formula>100*(a-b)/c</formula>
+    </metric>
+
+	<metric name="metric_TMAM_....L3_Bound(%)">
+        <event alias="a">MEM_LOAD_UOPS_RETIRED.L3_HIT</event>
+        <event alias="b">MEM_LOAD_UOPS_RETIRED.L3_MISS</event>
+        <event alias="c">CYCLE_ACTIVITY.STALLS_L2_MISS</event>
+        <event alias="d">CPU_CLK_UNHALTED.THREAD</event>
+		<formula>100*a/(a+7*b)*(c/d)</formula>
+    </metric>
+	
+	<metric name="metric_TMAM_....MEM_Bound(%)">
+        <event alias="a">MEM_LOAD_UOPS_RETIRED.L3_HIT</event>
+        <event alias="b">MEM_LOAD_UOPS_RETIRED.L3_MISS</event>
+        <event alias="c">CYCLE_ACTIVITY.STALLS_L2_MISS</event>
+        <event alias="d">CPU_CLK_UNHALTED.THREAD</event>
+		<formula>100*(1-(a/(a+7*b)))*(c/d)</formula>
+    </metric>
+
+	<metric name="metric_TMAM_..Core_Bound(%)">
+		<event alias="a">IDQ_UOPS_NOT_DELIVERED.CORE</event>
+		<event alias="b">UOPS_ISSUED.ANY</event>
+		<event alias="c">INT_MISC.RECOVERY_CYCLES_ANY</event>
+        <event alias="d">CPU_CLK_UNHALTED.THREAD_ANY</event>
+        <event alias="e">UOPS_RETIRED.RETIRE_SLOTS</event>
+        <event alias="f">CYCLE_ACTIVITY.STALLS_MEM_ANY</event>
+        <event alias="g">RESOURCE_STALLS.SB</event>
+        <event alias="h">CYCLE_ACTIVITY.STALLS_TOTAL</event>
+        <event alias="j">UOPS_EXECUTED.CYCLES_GE_1_UOP_EXEC</event>
+        <event alias="k">UOPS_EXECUTED.CYCLES_GE_2_UOPS_EXEC</event>
+        <event alias="m">UOPS_EXECUTED.CYCLES_GE_3_UOPS_EXEC</event>
+		<event alias="n">IDQ_UOPS_NOT_DELIVERED.CYCLES_0_UOPS_DELIV.CORE</event>
+        <event alias="p">CPU_CLK_UNHALTED.THREAD</event>
+        <event alias="q">INST_RETIRED.ANY</event>
+        <event alias="r">RS_EVENTS.EMPTY_CYCLES</event>
+		<constant alias="threads">system.sockets[0][0].size</constant>      
+		<formula>100*(1-((b-e+4*(c/threads)+a+e)/(4*d/threads)))*(1-((f+g)/(h+j-(((q/p)&gt;1.8)?m:k)-(((n/d)&gt;0.1)?r:0)+g)))</formula>
+	</metric>
+
+	<metric name="metric_TMAM_Retiring(%)">
+ 		<event alias="a">CPU_CLK_UNHALTED.THREAD_ANY</event>
+        <event alias="b">UOPS_RETIRED.RETIRE_SLOTS</event>
+		<constant alias="threads">system.sockets[0][0].size</constant>      
+		<formula>100*(b/(4*(a/threads)))</formula>
+    </metric>
+</perfm>

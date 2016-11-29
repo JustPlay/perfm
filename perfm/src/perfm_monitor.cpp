@@ -26,8 +26,8 @@ inline bool pid_exist(int pid)
 
 inline bool cpu_exist(int cpu)
 {
-    int sc_cpu_conf = sysconf(_SC_NPROCESSORS_CONF); /* should be constant, BUT in older version linux or glibc ... */
-    int sc_cpu_onln = sysconf(_SC_NPROCESSORS_ONLN); /* will change when do cpu hotplug */
+    // int sc_cpu_conf = sysconf(_SC_NPROCESSORS_CONF); /* should be constant, BUT in older version linux or glibc ... */
+    // int sc_cpu_onln = sysconf(_SC_NPROCESSORS_ONLN); /* will change when do cpu hotplug */
 
     // when cpuX is online, '/sys/devices/system/cpu/cpuX/cache' EXISTS on x86 linux, otherwise NOT
     if (cpu < 0 || ::access(std::string("/sys/devices/system/cpu/cpu" + std::to_string(cpu) + "/cache").c_str(), F_OK) != 0) {

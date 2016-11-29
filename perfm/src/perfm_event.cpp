@@ -91,79 +91,6 @@ struct perf_event_attr *perf_event::attribute() const {
     return hw_copy;
 }
 
-bool event::read()
-{
-    bool read_succ = true;
-
-    this->_pmu_prev[0] = this->_pmu_curr[0];
-    this->_pmu_prev[1] = this->_pmu_curr[1];
-    this->_pmu_prev[2] = this->_pmu_curr[2];
-
-    ssize_t nr = ::read(this->perf_fd(), this->_pmu_curr, sizeof(this->_pmu_curr));
-    if (nr != sizeof(this->_pmu_curr)) {
-        perfm_warn("read PMU counters failed, %s\n", strerror_r(errno, NULL, 0));
-        read_succ = false;
-    }
-
-    return read_succ;
-}
-
-uint64_t event::delta() const
-{
-    if (_pmu_curr[2] > _pmu_curr[1]) {
-        perfm_warn("running time (%zu) > enabled time (%zu).\n", _pmu_curr[2], _pmu_curr[1]);
-    }
-
-    if (_pmu_curr[2] == 0 && _pmu_curr[0] != 0) {
-        perfm_warn("running time *zero*, scaling failed. %zu, %zu, %zu.\n", _pmu_curr[0], _pmu_curr[1], _pmu_curr[2]);
-    }
-
-    if (_pmu_curr[2] <= _pmu_prev[2]) {
-        perfm_warn("running time curr (%zu) <= prev (%zu).\n", _pmu_curr[2], _pmu_prev[2]);
-        return 0;
-    }
-
-    double prev[3], curr[3];
-    
-    prev[0] = _pmu_prev[0];
-    prev[1] = _pmu_prev[1];
-    prev[2] = _pmu_prev[2];
-
-    curr[0] = _pmu_curr[0];
-    curr[1] = _pmu_curr[1];
-    curr[2] = _pmu_curr[2];
-
-    return static_cast<uint64_t>((curr[0] - prev[0]) * (curr[1] - prev[1]) / (curr[2] - prev[2]));
-}
-
-double event::ratio() const
-{
-    if (_pmu_curr[1] == 0) {
-        return 0;
-    } 
-
-    return 1.0 * _pmu_curr[2] / _pmu_curr[1];
-}
-
-uint64_t event::scale() const
-{
-    uint64_t res = 0;
-
-    if (_pmu_curr[2] > _pmu_curr[1]) {
-        perfm_warn("running time (%zu) > enabled time (%zu).\n", _pmu_curr[2], _pmu_curr[1]);
-    }
-
-    if (_pmu_curr[2] == 0 && _pmu_curr[0] != 0) {
-        perfm_warn("running time *zero*, scaling failed. %zu, %zu, %zu.\n", _pmu_curr[0], _pmu_curr[1], _pmu_curr[2]);
-    }
-
-    if (_pmu_curr[2] != 0) {
-        res = static_cast<uint64_t>(1.0 * _pmu_curr[0] * _pmu_curr[1] / _pmu_curr[2]);
-    }
-    
-    return res;
-}
-
 event::ptr_t event::alloc()
 {
     event *ev = nullptr;
@@ -226,6 +153,72 @@ int event::open(const std::string &evn, pid_t pid, int cpu, int grp, unsigned lo
     this->attribute(&hw);
 
     return this->open();
+}
+
+bool event::read()
+{
+    bool read_succ = true;
+
+    prev_pmu_val() = this->scale();
+
+    ssize_t nr = ::read(this->perf_fd(), this->_pmu_vals, 3 * sizeof(uint64_t)); // raw PMU, time_enabled, time_running
+    if (nr != 3 * sizeof(uint64_t)) {
+        perfm_warn("read PMU counters failed, %s\n", strerror_r(errno, NULL, 0));
+        read_succ = false;
+    }
+
+    return read_succ;
+}
+
+double event::ratio() const
+{
+    if (time_running() > time_enabled()) {
+        perfm_warn("time_running (%zu) > time_enabled (%zu)\n", time_running(), time_enabled());
+    }
+
+    if (time_enabled() == 0) {
+        return 0;
+    } 
+
+    return 1.0 * time_running() / time_enabled(); /* time_running / time_enabled */
+}
+
+uint64_t event::scale() const
+{
+    uint64_t res = 0;
+
+    if (time_running() > time_enabled()) {
+        perfm_warn("time_running (%zu) > time_enabled (%zu)\n", time_running(), time_enabled());
+    }
+
+    if (time_running() == 0 && raw_pmu_cntr() != 0) {
+        perfm_warn("time_running is 0, scaling failed. %zu, %zu, %zu.\n", raw_pmu_cntr(), time_enabled(), time_running());
+    }
+
+    if (time_running() != 0) {
+        res = static_cast<uint64_t>(1.0 * raw_pmu_cntr() * time_enabled() / time_running());
+    }
+    
+    return res;
+}
+
+uint64_t event::delta() const
+{
+    return this->scale() - prev_pmu_val(); /* current scaled value - previous scaled value */
+}
+
+event::pmu_cntr_t event::pmu_cntr() const
+{
+    return std::make_tuple(raw_pmu_cntr(), time_enabled(), time_running()); 
+}
+
+void event::pmu_cntr(uint64_t raw_val, uint64_t tim_ena, uint64_t tim_run)
+{
+    prev_pmu_val() = this->scale();
+
+    raw_pmu_cntr() = raw_val;
+    time_enabled() = tim_ena;
+    time_running() = tim_run;
 }
 
 void event::print() const
