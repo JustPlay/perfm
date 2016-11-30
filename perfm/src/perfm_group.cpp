@@ -20,9 +20,8 @@ group::ptr_t group::alloc()
 
     try {
         g = new group;
-    } catch (const std::bad_alloc &e) {
+    } catch (const std::bad_alloc &) {
         g = nullptr;
-        perfm_warn("%s\n", e.what());
     }
     
     return ptr_t(g);

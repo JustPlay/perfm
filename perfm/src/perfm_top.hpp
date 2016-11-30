@@ -49,6 +49,14 @@
 // The uncore PMU measures events at the socket level and is therefore disconnected from any of the four cores. 
 // The core PMU implements Intel architectural perfmon version 3 (so does Broadwell-EP) with four generic counters and three fixed counters.
 // The uncore has eight generic counters and one fixed counter.
+//
+// For core PMU: (in intel emon)
+// - core's PMU value = sum(SMT's PMU value)
+// - socket's PMU value = sum(core's PMU value)
+// - system's PMU value = sum(socket's PMU value)
+//
+// For uncore PMU: (in intel emon)
+// - system's PMU value = sum(socket's PMU value)
 
 namespace perfm {
 
@@ -79,6 +87,10 @@ public:
     void loop();
 
 private:
+    top () {
+        memset(_cpu_list, 0, sizeof(_cpu_list));
+    }
+
     unsigned long lshift(unsigned long val) const {
         return 1UL << (nr_bit_long - 1 - (val % nr_bit_long));
     }

@@ -41,8 +41,7 @@ perf_event::ptr_t perf_event::alloc()
     
     try {
         event = new perf_event;
-    } catch (const std::bad_alloc &e) {
-        perfm_warn("%s\n", e.what());
+    } catch (const std::bad_alloc &) {
         event = nullptr; 
     }
 
@@ -97,8 +96,7 @@ event::ptr_t event::alloc()
 
     try {
         ev = new event;
-    } catch (const std::bad_alloc &e) {
-        perfm_warn("%s\n", e.what());
+    } catch (const std::bad_alloc &) {
         ev = nullptr;
     }
     

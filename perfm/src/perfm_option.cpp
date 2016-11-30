@@ -57,8 +57,8 @@ void usage(const char *cmd)
             "  -e, --event <event1,event2;...>   event list to be monitored\n"
             "  -i, --input <input file path>     event config file for perfm, will override -e & --event\n"
             "  -o, --output <output file path>   output file\n"
-            "  -c, --cpu <cpu>                   which CPU to monitor, -1 for any CPUs\n"
-            "  -p, --pid <pid>                   which PID to monitor, -1 for any PIDs\n"
+            "  -c, --cpu, --processor <CPUs>     CPUs to monitor, if not provided, select all CPUs\n"
+            "  -p, --pid <pid>                   PID to monitor, if not provided, any process/thread\n"
             "  -m, --plm <plm string>            privilege level mask\n"
             "  --incl-children                   TODO\n"
             "\n"
@@ -178,6 +178,7 @@ void options::parse_monitor(int argc, char **argv)
         {"input",         required_argument, NULL, 'i'},
         {"output",        required_argument, NULL, 'o'},
         {"cpu",           required_argument, NULL, 'c'},
+        {"processor",     required_argument, NULL, 'c'},
         {"plm",           required_argument, NULL, 'm'},
         {"pid",           required_argument, NULL, 'p'},
         {"incl-children", no_argument,       NULL,  1 },
@@ -188,11 +189,19 @@ void options::parse_monitor(int argc, char **argv)
     while ((ch = getopt_long(argc, argv, opts, longopts, NULL)) != -1) {
         switch(ch) {
         case 'l':
-            this->loops = std::stoi(optarg);
+            try {
+                this->loops = std::stoi(optarg);
+            } catch (const std::exception &e) {
+                perfm_fatal("%s %s\n", e.what(), optarg);
+            }
             break;
 
         case 't':
-            this->interval = std::stod(optarg);
+            try {
+                this->interval = std::stod(optarg);
+            } catch (const std::exception &e) {
+                perfm_fatal("%s %s\n", e.what(), optarg);
+            }
             break;
 
         case 'e':
@@ -216,7 +225,7 @@ void options::parse_monitor(int argc, char **argv)
             break;
 
         case 'c':
-            this->cpu = std::stoi(optarg);
+            this->cpu_list = std::move(std::string(optarg));
             break;
 
         case 'm':
@@ -224,7 +233,11 @@ void options::parse_monitor(int argc, char **argv)
          break;
 
         case 'p':
-            this->pid = std::stoi(optarg);
+            try {
+                this->pid = std::stoi(optarg);
+            } catch (const std::exception &e) {
+                perfm_fatal("%s %s\n", e.what(), optarg);
+            }
             break;
 
         case 1:
@@ -236,13 +249,8 @@ void options::parse_monitor(int argc, char **argv)
             return;
         }
 
-        if (this->interval < 0.01) {
-            this->interval = 1;  /* 1 second */
-        }
-
-        if (this->loops <= 0) {
-            this->loops = 5;     /* 5 loops */
-        }
+        this->interval = this->interval >= 0.01 ? this->interval : 0.01;
+        this->loops = this->loops >= 0 ? this->loops : 5;
     }
 
     if (this->file_in != "") {
@@ -275,7 +283,7 @@ void options::parse_analyze(int argc, char **argv)
 void options::parse_top(int argc, char **argv)
 {
     //
-    // options for perfm.top io optional
+    // options for perfm.top is optional
     //
 
     if (argc < 0 || (argc > 0 && !argv)) {
@@ -298,11 +306,19 @@ void options::parse_top(int argc, char **argv)
     while ((ch = getopt_long(argc, argv, opts, longopts, NULL)) != -1) {
         switch(ch) {
         case 'd':
-            this->delay = std::stod(optarg);
+            try {
+                this->delay = std::stod(optarg);
+            } catch (const std::exception &e) {
+                perfm_fatal("%s %s\n", e.what(), optarg);
+            }
             break;
 
         case 'n':
-            this->max = std::stoi(optarg);
+            try {
+                this->iter = std::stoi(optarg);
+            } catch (const std::exception &e) {
+                perfm_fatal("%s %s\n", e.what(), optarg);
+            }
             break;
 
         case 'c':
@@ -319,7 +335,7 @@ void options::parse_top(int argc, char **argv)
         }
 
         if (this->delay < 0.01) {
-            this->delay = 0.01;
+            this->delay = 0.01; /* 10ms */
         }
     }
 }

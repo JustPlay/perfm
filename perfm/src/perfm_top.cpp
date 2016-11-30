@@ -152,6 +152,7 @@ void top::open()
 
         group::ptr_t g = group::alloc();
         if (!g) {
+            perfm_warn("failed to alloc group object\n");
             continue;
         }
 
@@ -253,7 +254,7 @@ void top::print(int cpu, double freq, double usr, double sys, double idle) const
 
 void top::loop()
 {
-    int max = perfm_options.max <= 0 ? INT_MAX : perfm_options.max;
+    int iter = perfm_options.iter <= 0 ? INT_MAX : perfm_options.iter;
 
     // start counting ...
     for (size_t c = 0, n = 0; n < _nr_select_cpu && c < _nr_total_cpu; ++c) {
@@ -283,7 +284,7 @@ void top::loop()
     std::uniform_real_distribution<double> dis(-0.01, 0.01); /* [-10ms, 10ms) */
 
     // display ...
-    while (max-- && !should_quit) {
+    while (iter-- && !should_quit) {
         double seconds = perfm_options.delay - dis(gen);
         nanoseconds_sleep(seconds); 
 
