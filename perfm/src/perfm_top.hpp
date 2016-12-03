@@ -66,14 +66,14 @@ public:
     using ptr_t = std::shared_ptr<top>;
 
 public:
-    static constexpr size_t nr_cpus_max = 512;
+    static constexpr size_t nr_max_cpus = 512;
     static constexpr size_t nr_bit_long = sizeof(unsigned long) << 3;
 
     static ptr_t alloc();
 
     virtual ~top() {
         if (_cpu_data) {
-            delete [] _cpu_data;
+            delete[] _cpu_data;
         }
     }
 
@@ -96,7 +96,7 @@ private:
     }
 
     bool is_set(int cpu) const {
-        if (cpu < 0 || static_cast<size_t>(cpu) >= nr_cpus_max) {
+        if (cpu < 0 || static_cast<size_t>(cpu) >= nr_max_cpus) {
             return false;
         }
 
@@ -104,7 +104,7 @@ private:
     }
 
     void do_set(int cpu) {
-        if (cpu < 0 || static_cast<size_t>(cpu) >= nr_cpus_max) {
+        if (cpu < 0 || static_cast<size_t>(cpu) >= nr_max_cpus) {
             return;
         }
 
@@ -112,7 +112,7 @@ private:
     }
 
     void do_clr(int cpu) {
-        if (cpu < 0 || static_cast<size_t>(cpu) >= nr_cpus_max) {
+        if (cpu < 0 || static_cast<size_t>(cpu) >= nr_max_cpus) {
             return;
         }
 
@@ -133,7 +133,7 @@ private:
     #define K_CYCLE_EID 1  // subscript for event(sys cycle) in cpu's event group
     #define N_EVENT_MAX 2
 
-    unsigned long _cpu_list[nr_cpus_max / nr_bit_long];
+    unsigned long _cpu_list[nr_max_cpus / nr_bit_long];
 
     using cpu_data_t = std::tuple<int, int, group::ptr_t>;
 

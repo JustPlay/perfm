@@ -164,8 +164,8 @@ void group::print() const
     #define DELIMITER "  "
 
     // 1. each event a line
-    // 2. event groups are separated by an empty line
-    // 3. column fields are separated by DELIMITER
+    // 2. column fields separated by DELIMITER
+    // 3. event groups separated by an empty line
     for (decltype(_elist.size()) i = 0; i < _elist.size(); ++i) {
         fprintf(fp, "%s" DELIMITER "%zu\n", _elist[i]->name().c_str(), _elist[i]->scale());
     }

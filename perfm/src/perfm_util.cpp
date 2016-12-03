@@ -27,7 +27,7 @@
 
 namespace perfm {
 
-void nanoseconds_sleep(double seconds, bool sleep_with_abs_time)
+void nanosecond_sleep(double seconds, bool sleep_with_abs_time)
 {
     long int sec  = static_cast<long int>(seconds);
     long int nsec = static_cast<long int>((seconds - sec) * 1000000000);

@@ -34,16 +34,28 @@ public:
      *
      * @elist  event group list, within the form: "event1,event2,event3,..."  
      * @pid    process/thread to minitor, -1 for any process/thread
-     * @cpu    processor to monitor; -1 for any processor
+     * @cpu    processor to monitor, -1 for any processor
      * @flags  flags used by perf_event_open(2), defaults to 0
      *
      * Return:
      *     file descriptor of the group leader, or -1 if error occurred 
      *
      * Description:
+     *     A pid > 0 and cpu == -1 setting measures per-process and follows that process to whatever CPU 
+     *     the process gets scheduled to. Per-process events can be created by any user.
+     *
+     *     A pid == -1 and cpu >= 0 setting is per-CPU and measures all processes on the specified CPU.
+     *     Per-CPU events need the CAP_SYS_ADMIN capability or a /proc/sys/kernel/perf_event_paranoid value of less than 1.
+     *
+     *     Note that the combination of pid == -1 and cpu == -1 is not valid.
+     *
+     *     An event group is scheduled onto the CPU as a unit: it will only be put onto the CPU if all of the events in 
+     *     the group can be put onto the CPU. This means that the values of the member events can be meaningfully 
+     *     compared, added, divided (to get ratios), etc., with each other, since they have counted events for the 
+     *     same set of executed instructions.
      */
-    int open(const std::string &elist, pid_t pid, int cpu = -1, unsigned long flags = 0UL);
-    int open(const std::vector<std::string> &eargv, pid_t pid, int cpu = -1, unsigned long flags = 0UL);
+    int open(const std::string &elist, pid_t pid, int cpu, unsigned long flags = 0UL);
+    int open(const std::vector<std::string> &eargv, pid_t pid, int cpu, unsigned long flags = 0UL);
 
     int close();
 
@@ -78,6 +90,10 @@ public:
 
     std::vector<event::ptr_t> elist() const {
         return _elist;
+    }
+
+    event::ptr_t event(size_t id) {
+        return id < _elist.size() ? _elist[id] : nullptr;
     }
 
 private:

@@ -45,11 +45,7 @@ public:
     void print() const;
 
     size_t nr_group() const {
-        return this->ev_groups.size();
-    }
-
-    const std::vector<std::string> &get_event_group() const {
-        return this->ev_groups;
+        return this->egroups.size();
     }
 
     static int nr_group_max() {
@@ -114,8 +110,8 @@ public:
     bool incl_children = false;  /* the counter should count events of child tasks, see perf_event_open(2) */
     bool start_on_exec = false;  /* start the counter automatically after a call to exec(2) */
 
-    double interval;             /* time (s) that an event group is monitored */
-    int loops;                   /* the number of times each event group is monitored */
+    double interval = 0.1;       /* time (s) that an event group is monitored */
+    int loops = 1;               /* the number of times each event group is monitored */
     pid_t pid;                   /* process/thread id to be monitored */
     std::string plm = "ukh";     /* privilege level mask */
 
@@ -134,14 +130,13 @@ public:
     int iter = -1;               /* -1 for inf iters */
     bool batch_mode = false;     /* default to interactive mode */
 
-private:
-    std::vector<std::string> ev_groups; /* event group list 
-                                         * - events separated by ',' within the same group
-                                         * - event group separated by ';'
-                                         *
-                                         * - for command line options, use: -e <event1,event2;event3,event4;...>
-                                         * - elems in ev_groups are in the form: <event1,event2,...>
-                                         */
+    std::vector<std::string> egroups; /* event group list 
+                                       * - events separated by "," within the same group
+                                       * - event group separated by ";"
+                                       *
+                                       * - for command line options, use: -e "event1,event2;event3,event4;..."
+                                       * - elems in egroups are in the form: "event1,event2,..."
+                                       */
 };
 
 extern options perfm_options; /* the global configure options for perfm */

@@ -76,7 +76,7 @@ void top::init()
     act.sa_handler = sighandler;
 
     if (sigaction(SIGINT, &act, NULL) != 0) {
-        perfm_warn("failed to install sighander for SIGINT\n");
+        perfm_warn("failed to install handler for SIGINT\n");
     }
 
     // setup display screen 
@@ -111,7 +111,10 @@ void top::fini()
 
 void top::open()
 {
-    _nr_total_cpu = num_cpus_total();
+    _nr_total_cpu  = num_cpus_total();
+    _nr_select_cpu = 0;
+
+    memset(_cpu_list, 0, sizeof(_cpu_list));
 
     try {
         this->_cpu_data = new cpu_data_t[_nr_total_cpu];
@@ -286,7 +289,7 @@ void top::loop()
     // display ...
     while (iter-- && !should_quit) {
         double seconds = perfm_options.delay - dis(gen);
-        nanoseconds_sleep(seconds); 
+        nanosecond_sleep(seconds); 
 
         if (!perfm_options.batch_mode) {
             move(0, 0);

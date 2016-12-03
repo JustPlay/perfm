@@ -52,9 +52,11 @@ void usage(const char *cmd)
 
     fprintf(stderr,
             "Commandline Options for: monitor\n"
-            "  -l, --loop <loops>                # of times each event set is monitored\n"
-            "  -t, --time <interval>             time (s) that an event set is monitored, granularity: 0.01s\n"
-            "  -e, --event <event1,event2;...>   event list to be monitored\n"
+            "  -l, --loop <loops>                # of times each event set is monitored, defaults to 1\n"
+            "  -t, --time <interval>             time (s) that an event set is monitored, defaults to 0.1s\n"
+            "  -e, --event <event1,event2;...>   event list to be monitor\n"
+            "                                    events separated by ',' within the same group\n"
+            "                                    event groups separated by ';'\n"
             "  -i, --input <input file path>     event config file for perfm, will override -e & --event\n"
             "  -o, --output <output file path>   output file\n"
             "  -c, --cpu, --processor <CPUs>     CPUs to monitor, if not provided, select all CPUs\n"
@@ -84,7 +86,7 @@ void usage(const char *cmd)
 
 bool options::parse_evcfg_file()
 {
-    this->ev_groups.clear();
+    this->egroups.clear();
 
     if (this->file_in == "") {
         return false;
@@ -92,7 +94,7 @@ bool options::parse_evcfg_file()
 
     std::fstream fin(this->file_in, std::ios_base::in);
     std::string line;
-    std::string evgrp;
+    std::string group;
     
     while (std::getline(fin, line)) {
         std::string event = str_trim(line);
@@ -102,12 +104,12 @@ bool options::parse_evcfg_file()
         } 
 
         if (event == ";") {
-            if (!evgrp.empty()) {
-                this->ev_groups.push_back(evgrp);
+            if (!group.empty()) {
+                this->egroups.push_back(group);
             }
-            evgrp.clear();
+            group.clear();
         } else {
-            evgrp += evgrp.empty() ? event : "," + event;
+            group += group.empty() ? event : "," + event;
         }
     }
 
@@ -205,7 +207,7 @@ void options::parse_monitor(int argc, char **argv)
             break;
 
         case 'e':
-            this->ev_groups = str_split(optarg, ";", options::nr_group_max());
+            this->egroups = str_split(optarg, ";", options::nr_group_max());
             break;
 
         case 'i':
@@ -249,8 +251,8 @@ void options::parse_monitor(int argc, char **argv)
             return;
         }
 
-        this->interval = this->interval >= 0.01 ? this->interval : 0.01;
-        this->loops = this->loops >= 0 ? this->loops : 5;
+        this->interval = this->interval > 0.01 ? this->interval : 0.01;
+        this->loops = this->loops > 1 ? this->loops : 1;
     }
 
     if (this->file_in != "") {
@@ -402,7 +404,7 @@ void options::print() const
             fprintf(fp, "- time that an event set is monitored   : %.2f(s)\n", this->interval);
             fprintf(fp, "- # of times each event set is monitored: %d\n",      this->loops);
             fprintf(fp, "- process/thread to monitor (pid/tid)   : %s\n",      this->pid == -1 ? "any" : std::to_string(this->pid).c_str());
-            fprintf(fp, "- processor to monitor                  : %s\n",      this->cpu == -1 ? "any" : std::to_string(this->cpu).c_str());
+            fprintf(fp, "- processor to monitor                  : %s\n",      this->cpu_list.empty() ? "any" : this->cpu_list.c_str());
             fprintf(fp, "- event config file                     : %s\n",      this->fp_in  ? this->file_in.c_str() : "none");
             fprintf(fp, "- output result file                    : %s\n",      this->fp_out ? this->file_out.c_str() : "stdout");
             fprintf(fp, "- privilege level mask                  : %s\n",      this->plm.c_str());
@@ -410,7 +412,7 @@ void options::print() const
             fprintf(fp, "-------------------------------------------------------\n");
 
             int i = 0;
-            for (const auto &grp : ev_groups) {
+            for (const auto &grp : egroups) {
                 auto ev_list = str_split(grp, ",", options::sz_group_max()); 
                 
                 fprintf(fp, "- Event Group #%d (%lu events)\n", i++, ev_list.size());

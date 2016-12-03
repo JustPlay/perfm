@@ -7,6 +7,7 @@
 
 #include <vector>
 #include <memory>
+#include <cstring>
 
 #include "perfm_group.hpp"
 
@@ -24,7 +25,11 @@ public:
 public:
     static ptr_t alloc();
 
-    ~monitor() { }
+    ~monitor() {
+        if (_cpu_data) {
+            delete[] _cpu_data;
+        }
+    }
 
     void open();
     void close();
@@ -37,13 +42,13 @@ private:
         memset(_cpu_list, 0, sizeof(_cpu_list));
     }
 
-    void rr();
+    void rr(double = 0.1);
     int loop();
 
     void parse_cpu_list(const std::string &list);
 
-    unsigned long lshift(unsigned long val) const {
-        return 1UL << (nr_bit_long - 1 - (val % nr_bit_long));
+    static unsigned long lshift(unsigned long v) {
+        return 1UL << (nr_bit_long - 1 - (v % nr_bit_long));
     }
 
     bool is_set(int cpu) const {
@@ -70,20 +75,18 @@ private:
         _cpu_list[cpu / nr_bit_long] &= ~lshift(cpu);
     }
 
+    void print() const;
+
 private:
-    std::vector<group::ptr_t> _glist; /* event group list */
+    using _cpu_data_t = std::vector<group::ptr_t>;
 
     unsigned long _cpu_list[nr_max_cpus / nr_bit_long];
+    _cpu_data_t  *_cpu_data = nullptr;
+
+    int _cpu = -1;
 
     size_t _nr_select_cpu = 0;
     size_t _nr_total_cpu  = 0;
-
-    using cpu_data_t = std::tuple<int, group::ptr_t>;
-
-    cpu_data_t *_cpu_data = nullptr;
-
-    #define cpu_num(cpu) std::get<0>(_cpu_data[(cpu)]) // processor's id
-    #define cpu_pmu(cpu) std::get<1>(_cpu_data[(cpu)]) // processor's PMU event
 };
 
 } /* namespace perfm */

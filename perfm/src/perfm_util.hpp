@@ -85,7 +85,7 @@ namespace perfm {
 double mround(double number, double multiple);
 
 /**
- * nanoseconds_sleep - high-resolution sleep without EINTR 
+ * nanosecond_sleep - high-resolution sleep without EINTR 
  *
  * @seconds              time to sleep (can be a float value, e.g. 0.01)
  * @sleep_with_abs_time  clock_nanosleep(2)
@@ -94,12 +94,12 @@ double mround(double number, double multiple);
  *     void
  *
  * Description:
- *     nanoseconds_sleep will ...
+ *     nanosecond_sleep will ...
  *
  *     @seconds may *not* greater than the value which 'long int' can hold
  * 
  */
-void nanoseconds_sleep(double seconds, bool sleep_with_abs_time = false);
+void nanosecond_sleep(double seconds, bool sleep_with_abs_time = false);
 
 /**
  * str_find - find the target string in the given C style string array
