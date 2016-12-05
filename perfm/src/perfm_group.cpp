@@ -113,44 +113,56 @@ int group::close() {
     return 0; /* FIXME (error handling) */
 }
 
-size_t group::read()
+bool group::read()
 {
     if (perfm_options.rdfmt_evgroup) {
-        size_t nr_events = this->size();
+        size_t nr_events = this->nr_event();
         size_t sz_buffer = sizeof(uint64_t) * (3 + nr_events);
 
-        uint64_t *val = new uint64_t[sz_buffer];
-        if (!val) {
+        uint64_t *buf = nullptr;
+        try {
+            buf = new uint64_t[sz_buffer];
+        } catch (const std::bad_alloc &) {
+            buf = nullptr; 
+        }
+
+        if (!buf) {
             perfm_fatal("memory allocate failed for %zu bytes\n", sz_buffer);
         }
 
-        ssize_t ret = ::read(this->leader()->perf_fd(), val, sz_buffer);
+        _tsc_prev = _tsc_curr;
+        _tsc_curr = read_tsc();
+        
+        ssize_t ret = ::read(this->leader()->perf_fd(), buf, sz_buffer);
         if (ret == -1) {
             perfm_fatal("%s\n", "error occured reading pmu counters");
         } 
         if (ret < sz_buffer) {
-            perfm_warn("read events counters, need %zu bytes, actually %zd bytes\n", sz_buffer, ret);
+            perfm_fatal("read events counters, need %zu bytes, actually %zd bytes\n", sz_buffer, ret);
         }
 
         for (size_t i = 0; i < nr_events; ++i) {
-            _elist[i]->pmu_cntr(val[3 + i], val[1], val[2]);
+            _elist[i]->pmu_cntr(buf[3 + i], buf[1], buf[2]);
         }
 
-        if (val) {
-            delete[] val;
+        if (buf) {
+            delete[] buf;
         }
 
-        return nr_events;
+        return true;
 
     } else {
-        size_t nr_events = 0; /* # of events which has been read succesfully */
+        _tsc_prev = _tsc_curr;
+        _tsc_curr = read_tsc();
+
+        size_t nr_events = 0;
 
         for (auto iter = _elist.begin(); iter != _elist.end(); ++iter) {
             if ((*iter)->read()) {
                 ++nr_events;
             }
         }
-        return nr_events;
+        return nr_events == this->nr_event() ? true : false;
     }
 }
 

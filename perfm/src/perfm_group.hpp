@@ -14,6 +14,27 @@
 
 #include "perfm_event.hpp"
 
+// GCC 4.3 now errors out on certain situations in C++ where a given name may refer to more than one type or function.
+// WITHIN A SCOPE, A GIVEN NAME CAN REFER TO ONLY TYPE OR FUNCTION.
+// For example, in the following code, the name foo changes meaning:
+//
+// class foo {};
+// class bar {
+// public:
+//     void do_silly(foo) {}
+//     void foo() {}
+// };
+//
+// Note that on line 5, foo refers to class foo, whereas on line 6 and after, foo refers to void foo(). 
+// This isn't allowed because it changes the meaning of foo. 
+// The reason that this isn't allowed in C++ is because IF in the definition of bar we write foo(), 
+// it is ambiguous whether we want to instantiate an object of type class foo or call this->foo().
+//
+// Note that this can also happen with two different types. The solution in either case is either to
+// move one of the names such that it is not in scope, or to rename one of the names. Note that in the
+// case with the function, it is usually easier to rename the function. If you are a library developer,
+// please do not forget to bump the SONAME if you change the ABI.
+
 namespace perfm {
 
 class group {
@@ -59,22 +80,32 @@ public:
 
     int close();
 
-    size_t read();
-    size_t copy();
+    bool read();
+    bool copy();
     
-    int start() {
-        return ioctl(leader()->perf_fd(), PERF_EVENT_IOC_ENABLE, 0);
+    // there exists three use case list below:
+    // 1. start -> read -> stop -> start -> read -> stop ...
+    // 2. start -> stop -> read -> start -> stop -> read ...
+    // 3. start -> read -> read -> read -> read -> ...
+    // we need to ensure this event group do counting all the time in period of [_tsc_prev, _tsc_curr]
+    bool start() {
+        _tsc_prev = _tsc_curr = read_tsc();
+        return ioctl(leader()->perf_fd(), PERF_EVENT_IOC_ENABLE, 0) == 0;
     }
 
-    int stop() {
-        return ioctl(leader()->perf_fd(), PERF_EVENT_IOC_DISABLE, 0);
+    bool stop() {
+        return ioctl(leader()->perf_fd(), PERF_EVENT_IOC_DISABLE, 0) == 0;
     }
 
-    int reset() {
-        return ioctl(leader()->perf_fd(), PERF_EVENT_IOC_RESET, 0);
+    bool reset() {
+        return ioctl(leader()->perf_fd(), PERF_EVENT_IOC_RESET, 0) == 0;
     }
 
     size_t size() const {
+        return _elist.size();
+    }
+
+    size_t nr_event() const {
         return _elist.size();
     }
 
@@ -92,8 +123,16 @@ public:
         return _elist;
     }
 
-    event::ptr_t event(size_t id) {
+    event::ptr_t fetch_event(size_t id) {
         return id < _elist.size() ? _elist[id] : nullptr;
+    }
+
+    uint64_t tsc_value() const {
+        return _tsc_curr;
+    }
+    
+    uint64_t tsc_delta() const {
+        return _tsc_curr - _tsc_prev;
     }
 
 private:
@@ -107,6 +146,9 @@ private:
     int _cpu = -1;            /* which CPU to monitor, -1 for any CPU */
     pid_t _pid;               /* which process to monitor, -1 for any process */
     unsigned long _flags = 0; /* flags used by perf_event_open(2) */
+
+    uint64_t _tsc_prev;
+    uint64_t _tsc_curr;
 };
 
 } /* namespace perfm */

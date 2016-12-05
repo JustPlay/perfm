@@ -110,7 +110,7 @@ public:
     bool incl_children = false;  /* the counter should count events of child tasks, see perf_event_open(2) */
     bool start_on_exec = false;  /* start the counter automatically after a call to exec(2) */
 
-    double interval = 0.1;       /* time (s) that an event group is monitored */
+    double interval = 1;         /* time (s) that an event group is monitored */
     int loops = 1;               /* the number of times each event group is monitored */
     pid_t pid;                   /* process/thread id to be monitored */
     std::string plm = "ukh";     /* privilege level mask */

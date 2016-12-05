@@ -39,20 +39,6 @@ void sig_handler(int signo)
 
 namespace perfm {
 
-inline bool pid_exist(int p)
-{
-    return ::access(std::string("/proc/" + std::to_string(p) + "/status").c_str(), F_OK) == 0;
-}
-
-inline bool cpu_exist(int c)
-{
-    // int sc_cpu_conf = sysconf(_SC_NPROCESSORS_CONF); /* should be constant, BUT in older version linux or glibc ... */
-    // int sc_cpu_onln = sysconf(_SC_NPROCESSORS_ONLN); /* will change when do cpu hotplug */
-
-    // when cpuX is online, '/sys/devices/system/cpu/cpuX/cache' EXISTS on x86 linux, otherwise NOT
-    return c >= 0 && ::access(std::string("/sys/devices/system/cpu/cpu" + std::to_string(c) + "/cache").c_str(), F_OK) == 0;
-}
-
 monitor::ptr_t monitor::alloc()
 {
     monitor *m = nullptr;
@@ -64,6 +50,17 @@ monitor::ptr_t monitor::alloc()
     }
 
     return ptr_t(m);
+}
+
+monitor::~monitor()
+{
+    if (_cpu_data) {
+        delete[] _cpu_data;
+    }
+
+    if (_ev_group) {
+        delete[] _ev_group;
+    }
 }
 
 void monitor::parse_cpu_list(const std::string &list)
@@ -110,13 +107,13 @@ void monitor::open()
 {
     this->_nr_total_cpu  = num_cpus_total();
     this->_nr_select_cpu = 0;
-    this->_cpu = -1;
 
     memset(this->_cpu_list, 0, sizeof(this->_cpu_list));
 
     // alloc memory for each cpu
     try {
         this->_cpu_data = new _cpu_data_t[this->_nr_total_cpu]; 
+        this->_ev_group = new _ev_group_t[this->_nr_total_cpu];
     } catch (const std::bad_alloc &e) {
         perfm_fatal("failed to alloc memory, %s\n", e.what());
     }
@@ -137,10 +134,6 @@ void monitor::open()
             --_nr_select_cpu;
             do_clr(c);
         }
-
-        if (is_set(c) && _cpu == -1) {
-            _cpu = c;
-        }
     }
 
     int pid = perfm_options.pid;
@@ -150,21 +143,25 @@ void monitor::open()
 
     /* TODO (permissions checking) */
 
-    for (const auto &ev_list : perfm_options.egroups) {
+    for (size_t g = 0; g < perfm_options.nr_group(); ++g) {
+        _ev_group[g] = str_split(perfm_options.egroups[g], ",");
+
         for (unsigned int c = 0, n = 0; n < _nr_select_cpu && c < _nr_total_cpu; ++c) { 
             if (!is_set(c)) {
                 continue;
             }
 
-            group::ptr_t g = group::alloc();
-            if (!g) {
+            ++n;
+
+            group::ptr_t group = group::alloc();
+            if (!group) {
                 perfm_fatal("failed to alloc group object\n");
             }
 
             /* FIXME (the pid & cpu argument) */
-            g->open(ev_list, perfm_options.pid, c);
+            group->open(_ev_group[g], perfm_options.pid, c);
 
-            _cpu_data[c].push_back(g);
+            _cpu_data[c].push_back(group);
         }
     }
 }
@@ -207,32 +204,45 @@ void monitor::stop()
 void monitor::rr(double second)
 {
     size_t nr_group = perfm_options.nr_group();
+    uint64_t tsc_prev;
+    uint64_t tsc_curr;
 
     for (size_t g = 0; g < nr_group; ++g) {
+        tsc_curr = read_tsc();
+
         for (unsigned int c = 0, n = 0; n < _nr_select_cpu && c < _nr_total_cpu; ++c) {
             if (!is_set(c)) {
                 continue;
             }
+
+            ++n;
 
             _cpu_data[c][g]->start();
         }
 
         nanosecond_sleep(second);
 
+        tsc_prev = tsc_curr;
+        tsc_curr = read_tsc();
+
         for (unsigned int c = 0, n = 0; n < _nr_select_cpu && c < _nr_total_cpu; ++c) {
             if (!is_set(c)) {
                 continue;
             } 
 
+            ++n;
+            
             _cpu_data[c][g]->read();
         }
 
-        print();
+        print(g, tsc_curr - tsc_prev);
 
         for (unsigned int c = 0, n = 0; n < _nr_select_cpu && c < _nr_total_cpu; ++c) {
             if (!is_set(c)) {
                 continue;
             } 
+
+            ++n;
 
             _cpu_data[c][g]->stop();
         }
@@ -256,7 +266,7 @@ int monitor::loop()
     return r;
 }
 
-void monitor::print() const
+void monitor::print(size_t g, uint64_t tsc_cycles) const
 {
     #define delimiter " "
     #define is_first(cpu) (cpu) == 0
@@ -269,42 +279,25 @@ void monitor::print() const
     // EventName, TSC Cycles, CPUa, CPUb, CPUc, CPUd, ...
     // EventName, TSC Cycles, CPUa, CPUb, CPUc, CPUd, ...
 
-    const size_t nr_group = perfm_options.nr_group();
-
-    size_t g = 0;
-    size_t n;
-    size_t e;
-
-    while (g < nr_group) {
-        n = _cpu_data[_cpu][g]->size();
-        e = 0;
-
-        while (e < n) {
-            unsigned int c = 0;
-
-            while (c < _nr_total_cpu) {
-                event::ptr_t event = _cpu_data[c][g]->event(e);
-
-                if (is_first(c)) {
-                    fprintf(fp, "%s", event->name().c_str());
-                }
-
-                if (is_set(c)) {
-                    fprintf(fp, delimiter "%lu", event->delta());
-                } else {
-                    fprintf(fp, delimiter "0");
-                }
-                
-                ++c;
+    for (size_t e = 0, n = _ev_group[g].size(); e < n; ++e) {
+        for (unsigned int c = 0; c < _nr_total_cpu; ++c) {
+            if (is_first(c)) {
+                fprintf(fp, "%s" delimiter "%zu", _ev_group[g][e].c_str(), tsc_cycles);
             }
 
-            fprintf(fp, "\n");
-            ++e;
+            if (is_set(c)) {
+                event::ptr_t event = _cpu_data[c][g]->fetch_event(e);
+                if (event->name() != _ev_group[g][e]) {
+                    perfm_fatal("event group must be consistent between all selected cpus\n");
+                }
+                fprintf(fp, delimiter "%lu", event->delta());
+            } else {
+                fprintf(fp, delimiter "0");
+            }
         }
-
         fprintf(fp, "\n");
-        ++g;
     }
+    fprintf(fp, "\n");
 }
 
 } /* namespace perfm */

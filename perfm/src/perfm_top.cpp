@@ -42,16 +42,17 @@ void sighandler(int signo)
 namespace perfm {
 
 // The rdtsc instruction is used to move the 64-bit TSC counter into the registers EDX:EAX.
-// Below is a piece of code that will return the 64-bit wide counter value.s
+// Below is a piece of code that will return the 64-bit wide counter value.
 // Note that this should work on both i386 and x86_64 architectures.
-unsigned long long int rdtsc()
-{
-    unsigned eax, edx;
-
-    __asm__ volatile("rdtsc" : "=a" (eax), "=d" (edx));
-
-    return ((unsigned long long)eax) | (((unsigned long long)edx) << 32);
-}
+//
+// unsigned long long int rdtsc()
+// {
+//     unsigned eax, edx;
+// 
+//     __asm__ volatile("rdtsc" : "=a" (eax), "=d" (edx));
+// 
+//     return ((unsigned long long)eax) | (((unsigned long long)edx) << 32);
+// }
 
 top::ptr_t top::alloc()
 {

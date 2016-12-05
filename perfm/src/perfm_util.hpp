@@ -17,6 +17,8 @@
 #include <utility>
 #include <map>
 
+#include <unistd.h>
+
 //
 // http://www.cnblogs.com/caosiyang/archive/2012/08/21/2648870.html
 //
@@ -207,6 +209,39 @@ size_t num_cpus_total();
  *     provide the 'cpu MHz' column (e.g. aarch64 & mips)
  */
 std::map<int, int> cpu_frequency();
+
+/**
+ * read_tsc - read the TSC counter
+ *
+ * Return:
+ *     the TSC counter's current value
+ *
+ * Description: 
+ *    rdtsc/rdtscp instruction is used to move the 64-bit TSC counter into registers EDX:EAX.
+ *    read_tsc() should only be used on newer intel processor with constant_tsc flag enabled in /proc/cpuinfo
+ */
+inline uint64_t read_tsc()
+{
+    uint32_t eax, edx;
+
+    __asm__ volatile("rdtscp" : "=a" (eax), "=d" (edx));
+
+    return static_cast<uint64_t>(eax) | (static_cast<uint64_t>(edx) << 32);
+}
+
+inline bool pid_exist(int p)
+{
+    return ::access(std::string("/proc/" + std::to_string(p) + "/status").c_str(), F_OK) == 0;
+}
+
+inline bool cpu_exist(int c)
+{
+    // int sc_cpu_conf = sysconf(_SC_NPROCESSORS_CONF); /* should be constant, BUT in older version linux or glibc ... */
+    // int sc_cpu_onln = sysconf(_SC_NPROCESSORS_ONLN); /* will change when do cpu hotplug */
+
+    // when cpuX is online, '/sys/devices/system/cpu/cpuX/cache' EXISTS on x86 linux, otherwise NOT
+    return c >= 0 && ::access(std::string("/sys/devices/system/cpu/cpu" + std::to_string(c) + "/cache").c_str(), F_OK) == 0;
+}
 
 } /* namespace perfm */
 

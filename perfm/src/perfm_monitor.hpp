@@ -25,11 +25,7 @@ public:
 public:
     static ptr_t alloc();
 
-    ~monitor() {
-        if (_cpu_data) {
-            delete[] _cpu_data;
-        }
-    }
+    ~monitor();
 
     void open();
     void close();
@@ -75,15 +71,15 @@ private:
         _cpu_list[cpu / nr_bit_long] &= ~lshift(cpu);
     }
 
-    void print() const;
+    void print(size_t group, uint64_t tsc_cycles) const;
 
 private:
     using _cpu_data_t = std::vector<group::ptr_t>;
+    using _ev_group_t = std::vector<std::string>;
 
     unsigned long _cpu_list[nr_max_cpus / nr_bit_long];
     _cpu_data_t  *_cpu_data = nullptr;
-
-    int _cpu = -1;
+    _ev_group_t  *_ev_group = nullptr;
 
     size_t _nr_select_cpu = 0;
     size_t _nr_total_cpu  = 0;

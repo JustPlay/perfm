@@ -12,19 +12,19 @@ namespace perfm {
 
 bool analyzer::metric_parse(xml::xml_node<char> *metric)
 {
-    // parsing metric name (uniq & non-empty)
+    // metric name (uniq & non-empty)
     xml::xml_attribute<char> *name = metric->first_attribute("name");
 
     if (!name || !name->value_size()) {
-        perfm_warn("metric's name is empty, ignored\n");
+        perfm_warn("metric must have a name\n");
         return false;
     }
 
-    std::string m_name(name->value(), name->value_size());  // metric name
-    std::string m_expr;                                     // metric expr
-    std::map<std::string, evnam_set_t::iterator> e_alias;   // metric expr alias
+    std::string m_name(name->value(), name->value_size());   // metric name
+    std::string m_expr;                                      // metric expr
+    std::map<std::string, _ev_name_map_t::iterator> e_alias; // metric expr alias
 
-    // parsing metric expr (non-empty)
+    // metric expr (non-empty)
     for (xml::xml_node<char> *node = metric->first_node(); node; node = node->next_sibling()) {
         const size_t sz_nam = node->name_size();
         const size_t sz_val = node->value_size();
@@ -45,8 +45,9 @@ bool analyzer::metric_parse(xml::xml_node<char> *metric)
                 continue;
             }
 
-            std::string nam(attr->value(), attr->value_size());  // alias name
-            auto ref = this->_evnam.insert(nod_val).first;       // alias reference (event name)
+            /* FIXME (pmu/event type) */
+            std::string nam(attr->value(), attr->value_size());   // alias name
+            auto ref = this->_ev_name.insert({nod_val, static_cast<pmu_event_type>(0)}).first; // alias reference (event name)
             e_alias.insert({nam, ref});
 
             continue;
@@ -59,8 +60,8 @@ bool analyzer::metric_parse(xml::xml_node<char> *metric)
     }
 
     if (!m_name.empty() && !m_expr.empty() && !e_alias.empty()) {
-        this->metrics_list.push_back(m_name);
-        this->formula_list.insert({m_name, {m_expr, e_alias}});
+        this->_metrics_list.push_back(m_name);
+        this->_formula_list.insert({m_name, {m_expr, e_alias}});
     } else {
         perfm_warn("metric's name, formula or formula alias may be empty\n");
         return false;
@@ -108,10 +109,10 @@ std::string analyzer::expr_in2postfix(const std::string &expr_infix) const
     } 
 
     enum {
-        ERROR = 0,
-        OPERATOR, // "*/%+-"
-        OPERAND,
-        BRACKET   // "()"
+        EXPR_ERROR = 0,
+        EXPR_OPERATOR, // "*/%+-"
+        EXPR_OPERAND,
+        EXPR_BRACKET   // "()"
     };
 
     size_t pos = 0;
@@ -132,22 +133,22 @@ std::string analyzer::expr_in2postfix(const std::string &expr_infix) const
                     perfm_fatal("this should never happen\n");
                 }
 
-                return OPERAND;
+                return EXPR_OPERAND;
 
             case '*':  case '/':  case '%':  case '+':  case '-':
                 if (res.empty()) {
                     res = str[pos++];
-                    return OPERATOR;
+                    return EXPR_OPERATOR;
                 } else {
-                    return OPERAND;
+                    return EXPR_OPERAND;
                 }
 
             case '(':  case ')':
                 if (res.empty()) {
                     res = str[pos++];
-                    return BRACKET;
+                    return EXPR_BRACKET;
                 } else {
-                    return OPERAND;
+                    return EXPR_OPERAND;
                 }
 
             default:
@@ -155,7 +156,7 @@ std::string analyzer::expr_in2postfix(const std::string &expr_infix) const
             }
         }
 
-        return res.empty() ? ERROR : OPERAND;
+        return res.empty() ? EXPR_ERROR : EXPR_OPERAND;
     };
 
     int priority[256] = { 0 };
@@ -186,13 +187,13 @@ std::string analyzer::expr_in2postfix(const std::string &expr_infix) const
         expr_postfix += expr_postfix.empty() ? str : " " + str;
     };
 
-    for (int stat = get_elem(expr_infix, elem); stat != ERROR; stat = get_elem(expr_infix, elem)) {
+    for (int stat = get_elem(expr_infix, elem); stat != EXPR_ERROR; stat = get_elem(expr_infix, elem)) {
         switch (stat) {
-        case OPERAND:
+        case EXPR_OPERAND:
             str_append(elem);
             break;
 
-        case OPERATOR:
+        case EXPR_OPERATOR:
             while (!stk.empty() && !less_priority(stk.top(), elem[0])) {
                 str_append(std::string(1, stk.top()));
                 stk.pop();
@@ -200,7 +201,7 @@ std::string analyzer::expr_in2postfix(const std::string &expr_infix) const
             stk.push(elem[0]);
             break;
 
-        case BRACKET:
+        case EXPR_BRACKET:
             if ("(" == elem) {
                 stk.push('('); 
             } else {
@@ -227,10 +228,8 @@ std::string analyzer::expr_in2postfix(const std::string &expr_infix) const
     return std::move(expr_postfix);
 }
 
-double analyzer::expr_eval(const me_formula_t &formula) const
+double analyzer::expr_eval(const _expression_t &formula) const
 {
-   /* FIXME */ 
-
     const auto  exprn = expr_in2postfix(formula.first); // std::string
     const auto &alias = formula.second;                 // std::map
 
@@ -251,7 +250,7 @@ double analyzer::expr_eval(const me_formula_t &formula) const
 
         res.clear();
 
-        // each elem (operator & operand) in the postfix expr was separate by a ' '
+        // each elem (operator & operand) in the postfix expr was separated by a ' '
         while (pos < sz_str) {
             switch (str[pos]) {
             case ' ':
@@ -276,19 +275,19 @@ double analyzer::expr_eval(const me_formula_t &formula) const
         switch (stat) {
         case OPERAND: {
                 // fetch the real name (event name) for this alias
-                auto nam = alias.find(elem);
-                if (nam == alias.end()) {
+                auto name = alias.find(elem);
+                if (name == alias.end()) {
                     perfm_fatal("invalid operand %s\n", elem.c_str());
                 }
 
                 // fetch data for the given event
-                auto dat = _evdat.find(*nam->second);
-                if (dat == _evdat.end()) {
-                    perfm_fatal("invalid event name %s\n", nam->second->c_str());
+                auto data = _ev_data.find(name->second->first);
+                if (data == _ev_data.end()) {
+                    perfm_fatal("invalid event name %s\n", name->second->first.c_str());
                 }
 
                 /* FIXME */
-                stk.push(std::get<0>(dat->second));
+                stk.push(std::get<0>(data->second));
             }
             break;
 
@@ -329,28 +328,33 @@ double analyzer::expr_eval(const me_formula_t &formula) const
     }
 
     if (stk.empty()) {
-        perfm_fatal("what ???\n");
+        perfm_fatal("invalid formula expression %s\n", formula.first.c_str());
     }
 
     return stk.top();
 }
 
-void analyzer::metric_eval(const std::string &metric)
+void analyzer::metric_eval(const _metric_nam_t &metric)
 {
-    auto iter = this->formula_list.find(metric);
-    if (iter == this->formula_list.end()) {
+    auto iter = _formula_list.find(metric);
+    if (iter == _formula_list.end()) {
         perfm_warn("invalid metric %s\n", metric.c_str());
         return;
     }
 
-    double val = expr_eval(iter->second);
+    double metric_val = expr_eval(iter->second);
 
-    /* TODO */
+    /* TODO (how to use/show/display this value) */
 }
 
 void analyzer::metric_eval()
 {
-    for (auto iter = metrics_list.begin(); iter != metrics_list.end(); ++iter) {
+    if (_metrics_list.empty()) {
+        perfm_warn("no metric for evaluate\n");
+        return;
+    }
+
+    for (auto iter = _metrics_list.begin(); iter != _metrics_list.end(); ++iter) {
         metric_eval(*iter);
     }
 }
