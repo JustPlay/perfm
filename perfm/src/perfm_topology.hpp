@@ -90,17 +90,20 @@ private:
 
     std::bitset<NR_CPU_MAX> _cpu_present_list;
     std::bitset<NR_CPU_MAX> _cpu_online_list;
-    #define is_present(cpu) _cpu_present_list.test((cpu)) /* is __processor__ @cpu presented ? */
-    #define is_online(cpu)  _cpu_online_list.test((cpu))  /* is __processor__ @cpu online ? */
+    #define cpu_present(cpu) _cpu_present_list.test((cpu)) /* is (logical) processor @cpu presented ? */
+    #define cpu_online(cpu)  _cpu_online_list.test((cpu))  /* is (logical) processor @cpu online ? */
 
-    std::bitset<_nr_max_socket> _socket_list;
+    std::bitset<_nr_max_socket> _socket_present_list;
+    std::bitset<_nr_max_socket> _socket_online_list;
+    #define skt_present(skt) _socket_present_list.test((skt)) /* is socket presented ? */
+    #define skt_online(skt)  _socket_online_list.test((skt))  /* is socket online ? */
 
     using _core2thrds_map_t = std::array<int, _nr_max_smt_per_core>;  
 
-    std::tuple<bool, int, _core2thrds_map_t> _topology[8][64];           
-    #define is_core_exist(skt, core) std::get<0>(_topology[(skt)][(core)]) /* core exist? core's id may be discontinuous */
-    #define nr_core_thrds(skt, core) std::get<1>(_topology[(skt)][(core)]) /* how many threads share this core */
-    #define threads_array(skt, core) std::get<2>(_topology[(skt)][(core)]) /* processor/cpu list on this core */
+    std::tuple<bool, int, _core2thrds_map_t> _topology[_nr_max_socket][_nr_max_core_per_skt];           
+    #define is_core_exist(skt, core) std::get<0>(_topology[(skt)][(core)]) /* core (physical) exist? core's id may be discontinuous */
+    #define nr_core_thrds(skt, core) std::get<1>(_topology[(skt)][(core)]) /* how many threads (logical) share this core */
+    #define threads_array(skt, core) std::get<2>(_topology[(skt)][(core)]) /* processor/cpu (logical) list on this core (physical) */
 
     std::array<std::pair<int, int>, NR_CPU_MAX> _cpu; /* subscript is (logical) processor's id
                                                        * array type is: <core, socket>

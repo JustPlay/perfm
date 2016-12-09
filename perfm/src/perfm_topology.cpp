@@ -9,6 +9,7 @@
 #include <vector>
 #include <string>
 #include <fstream>
+#include <set>
 
 namespace perfm {
 
@@ -39,7 +40,15 @@ void topology::build()
 
     _cpu_present_list.reset();
     _cpu_online_list.reset();
-    _socket_list.reset();
+    _socket_present_list.reset();
+    _socket_online_list.reset();
+
+    for (unsigned int s = 0; s < _nr_max_socket; ++s) {
+        for (unsigned int c = 0; c < _nr_max_core_per_skt; ++c) {
+            is_core_exist(s, c) = false;
+            nr_core_thrds(s, c) = 0;
+        }
+    }
 
     build_cpu_present_list();
     build_cpu_online_list();
@@ -143,7 +152,7 @@ void topology::build_cpu_online_list()
     
     } else {
         for (unsigned int c = 0, n = 0; n < _nr_cpu; ++c) {
-            if (!is_present(c)) {
+            if (!cpu_present(c)) {
                 continue;
             }
 
@@ -173,13 +182,6 @@ void topology::build_cpu_online_list()
 
 void topology::build_cpu_topology()
 {
-    for (int s = 0; s < _nr_max_socket; ++s) {
-        for (int c = 0; c < _nr_max_core_per_skt; ++c) {
-            is_core_exist(s, c) = false;
-            nr_core_thrds(s, c) = 0;
-        }
-    }
-
     const std::string filp_core   = "/topology/core_id";
     const std::string filp_socket = "/topology/physical_package_id";
     
@@ -187,8 +189,9 @@ void topology::build_cpu_topology()
     int core_id;
     int socket;
 
+    // build the '<socket, core> => processors' map
     for (unsigned int c = 0, n = 0; n < _nr_cpu; ++c) {
-        if (!is_present(c)) {
+        if (!cpu_present(c)) {
             continue;
         } 
 
@@ -221,8 +224,55 @@ void topology::build_cpu_topology()
         }
 
         // do some recording
-        is_core_exist(socket, core_id) = true;
+        if (!skt_present(socket)) {
+            ++_nr_socket;
+            _socket_present_list.set(socket);
+        }
+
+        if (!is_core_exist(socket, core_id)) {
+            is_core_exist(socket, core_id) = true;
+            ++_nr_core;
+        }
+
         threads_array(socket, core_id)[nr_core_thrds(socket, core_id)++] = c;
+    }
+
+    // build the 'processor => <core, socket>' map
+    for (int s = 0, n = 0; n < _nr_socket && s < _nr_max_socket; ++s) {
+        if (!skt_present(s)) {
+            continue;
+        }
+
+        ++n;
+
+        for (int c = 0; c < _nr_max_core_per_skt; ++c) {
+            if (!is_core_exist(s, c)) {
+                continue;
+            }
+
+            for (int p = 0; p < nr_core_thrds(s, c); ++p) {
+                _cpu[threads_array(s, c)[p]] = std::make_pair(c, s);
+            }
+        }
+    }
+
+    std::set<std::pair<int, int>> flag;
+    for (unsigned int c = 0, n = 0; n < _nr_onln_cpu; ++c) {
+        if (!cpu_online(c)) {
+            continue;
+        }
+
+        ++n;
+
+        if (!skt_online(processor_socket(c))) {
+            _socket_online_list.set(processor_socket(c));
+            ++_nr_onln_socket;
+        }
+
+        if (flag.find(std::make_pair(processor_core(c), processor_socket(c))) == flag.end()) {
+            ++_nr_onln_core;
+            flag.insert(std::make_pair(processor_core(c), processor_socket(c)));
+        }
     }
 }
 
@@ -231,13 +281,13 @@ void topology::processor_online() const
     // put all presented processor online
     //
     for (unsigned int c = 0, n = 0; n < _nr_cpu; ++c) {
-        if (!is_present(c)) {
+        if (!cpu_present(c)) {
             continue; 
         }
 
         ++n;
 
-        if (!is_online(c)) {
+        if (!cpu_online(c)) {
             processor_hotplug(c, +1);
         }
     }
@@ -248,13 +298,13 @@ void topology::processor_offline() const
     // offline processors not in the _cpu_online_list
     //
     for (unsigned int c = 0, n = 0; n < _nr_cpu; ++c) {
-        if (!is_present(c)) {
+        if (!cpu_present(c)) {
             continue;
         }
 
         ++n;
 
-        if (!is_online(c)) {
+        if (!cpu_online(c)) {
             processor_hotplug(c, -1);
         }
     }
@@ -296,22 +346,10 @@ void topology::print()
     fprintf(fp, "- Threads (logical cores) per physical core : %zu\n", _nr_cpu / _nr_core); 
     fprintf(fp, "------------------------------------------------------\n");
 
-    for (int s = 0; s < _nr_max_socket; ++s) {
-        for (int c = 0; c < _nr_max_core_per_skt; ++c) {
-            if (!is_core_exist(s, c)) {
-                continue;
-            }
-
-            for (int p = 0; p < nr_core_thrds(s, c); ++p) {
-                _cpu[p] = std::make_pair(c, s);
-            }
-        }
-    }
-
     // processor list
     fprintf(fp, "processor: ");
     for (unsigned int c = 0, n = 0; n < _nr_cpu; ++c) {
-        if (!is_present(c)) {
+        if (!cpu_present(c)) {
             continue;
         }
 
@@ -324,7 +362,7 @@ void topology::print()
     // physical core list
     fprintf(fp, "core id:   ");
     for (unsigned int c = 0, n = 0; n < _nr_cpu; ++c) {
-        if (!is_present(c)) {
+        if (!cpu_present(c)) {
             continue;
         }
 
@@ -337,7 +375,7 @@ void topology::print()
     // socket list
     fprintf(fp, "socket id: ");
     for (unsigned int c = 0, n = 0; n < _nr_cpu; ++c) {
-        if (!is_present(c)) {
+        if (!cpu_present(c)) {
             continue;
         }
 
