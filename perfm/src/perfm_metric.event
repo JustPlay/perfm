@@ -1,0 +1,27 @@
+########################### description ##############################
+#                                                                    #
+# - commentary line start with '#', which will be ignored by perfm   #
+# - each line specifying an event                                    #
+# - the first event in the event group will be the group leader      #
+# - event group ended by ';'                                         #
+#                                                                    #
+########################### description ##############################
+
+# Events Group #1
+INST_RETIRED:ANY_P             
+CPU_CLK_THREAD_UNHALTED:REF_XCLK      
+CPU_CLK_THREAD_UNHALTED:THREAD_P   
+IDQ_UOPS_NOT_DELIVERED:CORE
+;
+
+# Events Group #2
+INST_RETIRED:ANY_P 
+CPU_CLK_THREAD_UNHALTED:REF_XCLK
+CPU_CLK_THREAD_UNHALTED:THREAD_P
+;
+
+# Events Group #2
+INST_RETIRED:ANY_P 
+CPU_CLK_THREAD_UNHALTED:REF_XCLK
+CPU_CLK_THREAD_UNHALTED:THREAD_P
+;

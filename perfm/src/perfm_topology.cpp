@@ -10,6 +10,7 @@
 #include <string>
 #include <fstream>
 #include <set>
+#include <algorithm>
 
 namespace perfm {
 
@@ -51,7 +52,50 @@ void topology::build()
     }
 
     build_cpu_present_list();
+
+#ifndef NDEBUG
+    fprintf(stderr, "Processor presented: %2zu - ", _nr_cpu);
+    for (unsigned int c = 0, n = 0; n < _nr_cpu; ++c) {
+        if (!cpu_present(c)) {
+            continue;
+        }
+        ++n;
+        
+        if (c < 10) {
+            fprintf(stderr, "%-2u", c);
+        } else {
+            fprintf(stderr, "%-3u", c);
+        }
+    }
+    fprintf(stderr, "\n");
+#endif
+
     build_cpu_online_list();
+
+#ifndef NDEBUG
+    fprintf(stderr, "Processor online   : %2zu - ", _nr_onln_cpu);
+    for (unsigned int c = 0, n = 0; n < _nr_cpu; ++c) {
+        if (!cpu_present(c)) {
+            continue;
+        }
+        ++n;
+
+        if (!cpu_online(c)) {
+            if (c < 10) {
+                fprintf(stderr, "%-2s", "*");
+            } else {
+                fprintf(stderr, "%-3s", "*");
+            }
+        } else {
+            if (c < 10) {
+                fprintf(stderr, "%-2u", c);
+            } else {
+                fprintf(stderr, "%-3u", c);
+            }
+        }
+    }
+    fprintf(stderr, "\n");
+#endif
 
     //
     // for now, 
@@ -238,14 +282,14 @@ void topology::build_cpu_topology()
     }
 
     // build the 'processor => <core, socket>' map
-    for (int s = 0, n = 0; n < _nr_socket && s < _nr_max_socket; ++s) {
+    for (unsigned int s = 0, n = 0; n < _nr_socket && s < _nr_max_socket; ++s) {
         if (!skt_present(s)) {
             continue;
         }
 
         ++n;
 
-        for (int c = 0; c < _nr_max_core_per_skt; ++c) {
+        for (unsigned int c = 0; c < _nr_max_core_per_skt; ++c) {
             if (!is_core_exist(s, c)) {
                 continue;
             }
@@ -346,16 +390,50 @@ void topology::print()
     fprintf(fp, "- Threads (logical cores) per physical core : %zu\n", _nr_cpu / _nr_core); 
     fprintf(fp, "------------------------------------------------------\n");
 
+    auto compute_width = [](int a, int b, int c) -> int {
+        a = a > b ? a : b;
+        a = a > c ? a : c;
+
+        if (a < 10) {
+            return 2;
+        }
+
+        if (a >= 10 && a < 100) {
+            return 3;
+        }
+
+        return 4;
+    };
+
+    int column_width[_nr_cpu];
+
+    for (unsigned int c = 0, n = 0; n < _nr_cpu; ++c) {
+        if (!cpu_present(c)) {
+            continue;
+        }
+
+        column_width[n++] = compute_width(c, processor_core(c), processor_socket(c));
+    }
+
     // processor list
     fprintf(fp, "processor: ");
     for (unsigned int c = 0, n = 0; n < _nr_cpu; ++c) {
         if (!cpu_present(c)) {
             continue;
         }
-
         ++n;
 
-        fprintf(fp, "%-3d", c);
+        switch (column_width[n]) {
+        case 2:
+            fprintf(fp, "%-2d", c);
+            break;
+        case 3:
+            fprintf(fp, "%-3d", c);
+            break;
+        case 4:
+            fprintf(fp, "%-4d", c);
+            break;
+        }
     }
     fprintf(fp, "\n");
 
@@ -365,10 +443,19 @@ void topology::print()
         if (!cpu_present(c)) {
             continue;
         }
-
         ++n;
 
-        fprintf(fp, "%-3d", _cpu[c].first);
+        switch (column_width[n]) {
+        case 2:
+            fprintf(fp, "%-2d", processor_core(c));
+            break;
+        case 3:
+            fprintf(fp, "%-3d", processor_core(c));
+            break;
+        case 4:
+            fprintf(fp, "%-4d", processor_core(c));
+            break;
+        }
     }
     fprintf(fp, "\n");
 
@@ -378,10 +465,19 @@ void topology::print()
         if (!cpu_present(c)) {
             continue;
         }
-
         ++n;
 
-        fprintf(fp, "%-3d", _cpu[c].second);
+        switch (column_width[n]) {
+        case 2:
+            fprintf(fp, "%-2d", processor_socket(c));
+            break;
+        case 3:
+            fprintf(fp, "%-3d", processor_socket(c));
+            break;
+        case 4:
+            fprintf(fp, "%-4d", processor_socket(c));
+            break;
+        }
     }
     fprintf(fp, "\n");
 }

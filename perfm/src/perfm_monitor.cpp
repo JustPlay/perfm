@@ -301,4 +301,3 @@ void monitor::print(size_t g, uint64_t tsc_cycles) const
 }
 
 } /* namespace perfm */
-
