@@ -229,9 +229,24 @@ inline uint64_t read_tsc()
     return static_cast<uint64_t>(eax) | (static_cast<uint64_t>(edx) << 32);
 }
 
+inline bool file_exist(const char *filp)
+{
+    return filp && ::access(filp, F_OK) == 0;
+}
+
+inline bool file_readable(const char *filp)
+{
+    return filp && ::access(filp, R_OK) == 0;
+}
+
+inline bool file_writable(const char *filp)
+{
+    return filp && ::access(filp, W_OK) == 0;
+}
+
 inline bool pid_exist(int p)
 {
-    return ::access(std::string("/proc/" + std::to_string(p) + "/status").c_str(), F_OK) == 0;
+    return p >= 1 && ::access(std::string("/proc/" + std::to_string(p) + "/status").c_str(), F_OK) == 0;
 }
 
 inline bool cpu_exist(int c)

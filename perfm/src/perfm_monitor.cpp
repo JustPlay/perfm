@@ -253,7 +253,7 @@ int monitor::loop()
 {
     std::random_device rd;
     std::default_random_engine e(rd());
-    std::uniform_real_distribution<double> dis(-0.01, 0.01); /* [-10ms, 10ms) */
+    std::uniform_real_distribution<double> dis(-0.005, 0.005); /* [-5ms, 5ms) */
 
     int n = perfm_options.loops;
     int r = 0;

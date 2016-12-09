@@ -131,7 +131,7 @@ std::string str_trim(const std::string &str, const char *charlist)
     }
 
     if (s <= e) {
-        return str.substr(s, e - s + 1);
+        return std::move(str.substr(s, e - s + 1));
     }
     
     return "";
@@ -177,16 +177,16 @@ std::vector<std::string> str_split(const std::string &str, const std::string &de
     while (limit && search < str.size()) {
         target = str.find(del, search);
         if (target != std::string::npos) {
-            result.push_back(str.substr(search, target - search));
+            result.push_back(std::move(str.substr(search, target - search)));
             search = --limit ? target + del.size() : target;
         } else {
-            result.push_back(str.substr(search));
+            result.push_back(std::move(str.substr(search)));
             break;
         }
     }
 
     if (!limit && search < str.size()) {
-        result.push_back(str.substr(search));
+        result.push_back(std::move(str.substr(search)));
     }
     
     return std::move(result);

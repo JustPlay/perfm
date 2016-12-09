@@ -76,7 +76,8 @@ void run_topper()
     }
 
     if (geteuid() != 0) {
-        perfm_fatal("linux's perf_event requires root privilege to do system-wide monitor\n");
+        fprintf(stderr, "%s: linux's perf_event requires root privilege to do system-wide monitor\n", program);
+        exit(EXIT_FAILURE);
     }
 
     pfm_err_t ret = pfm_initialize();

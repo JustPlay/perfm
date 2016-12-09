@@ -17,14 +17,18 @@
 #include <unordered_set>
 #include <utility>
 #include <tuple>
+#include <memory>
 
 namespace perfm {
 
 namespace xml = rapidxml;
 
 class analyzer {
+public:
+    using ptr_t = std::shared_ptr<analyzer>;
+
 private:
-    enum pmu_event_type {
+    enum {
         PMU_CORE = 0,  /* core PMU */
         PMU_UNCORE,    /* uncore PMU (socket level) */
         PMU_OFFCORE,   /* offcore PMU */
@@ -32,21 +36,25 @@ private:
         PMU_TYPE_MAX
     };
 
-    using _ev_name_map_t = std::unordered_map<std::string, pmu_event_type>;  /* event name=>type map */
-    using _ev_data_fmt_t = std::tuple<uint64_t>;                             /* event data format */
+    using _ev_name_map_t = std::unordered_map<std::string, int>;             /* event name=>type map */
+    using _ev_data_fmt_t = std::vector<double>;                              /* event data format */
     using _ev_data_map_t = std::unordered_map<std::string , _ev_data_fmt_t>; /* event name=>data map */
 
     using _metric_nam_t = std::string;
     using _expression_t = std::pair<std::string, std::map<std::string, _ev_name_map_t::iterator>>;
 
 public:
-    bool metric_parse(const char *filp);
+    ptr_t alloc();
 
-    void metric_eval();
-    void metric_eval(const _metric_nam_t &metric);
+    void collect(const char *filp);
+    void parse();
 
 private:
+    void metric_parse(const char *filp = "perfm_metric.xml");
     bool metric_parse(xml::xml_node<char> *metric);
+
+    void metric_eval(/* TODO */);
+    void metric_eval(/* TODO */const _metric_nam_t &metric);
 
     std::string expr_in2postfix(const std::string &infix) const;
 
@@ -62,7 +70,12 @@ private:
     std::vector<_metric_nam_t> _metrics_list;
 
     _ev_name_map_t _ev_name;   /* event name=>type list */
-    _ev_data_map_t _ev_data;   /* event name=>data list */
+    _ev_data_map_t _ev_data;   /* event name=>data list, averaged value */
+
+    int _nr_thread;
+    int _nr_core;
+    int _nr_socket;
+    int _nr_system = 1;
 };
 
 } /* namespace perfm */

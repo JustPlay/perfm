@@ -122,6 +122,12 @@ public:
     //
     // options for perfm.analyze
     // 
+    std::string metric_xml;
+
+    bool thread_view;
+    bool core_view;
+    bool socket_view;
+    bool system_view;
 
     //
     // options for perfm.top
