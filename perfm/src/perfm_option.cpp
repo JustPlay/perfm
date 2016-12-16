@@ -59,7 +59,7 @@ void usage(const char *cmd)
             "                                    event groups separated by ';'\n"
             "  -i, --input <input file path>     event config file for perfm, will override -e & --event\n"
             "  -o, --output <output file path>   output file\n"
-            "  -c, --cpu, --processor <CPUs>     CPUs to monitor, if not provided, select all CPUs\n"
+            "  -c, --cpu, --processor <CPUs>     CPUs to monitor, if not provided, select all (online) CPUs\n"
             "  -p, --pid <pid>                   PID to monitor, if not provided, any process/thread\n"
             "  -m, --plm <plm string>            privilege level mask\n"
             "  --incl-children                   TODO\n"
@@ -84,7 +84,7 @@ void usage(const char *cmd)
 
 }
 
-bool options::parse_evcfg_file()
+bool options::parse_event_file()
 {
     this->egroups.clear();
 
@@ -97,6 +97,10 @@ bool options::parse_evcfg_file()
     std::string group;
     
     while (std::getline(fin, line)) {
+        if (line.empty()) {
+            continue;
+        }
+
         std::string event = str_trim(line);
 
         if (event.empty() || event[0] == '#') {
@@ -256,7 +260,7 @@ void options::parse_monitor(int argc, char **argv)
     }
 
     if (this->file_in != "") {
-        if (!parse_evcfg_file()) {
+        if (!parse_event_file()) {
             perfm_fatal("event parsing (%s) error, exit...\n", this->file_in.c_str());
         } 
     }

@@ -57,7 +57,7 @@ public:
     }
 
 private:
-    bool parse_evcfg_file();
+    bool parse_event_file();
 
     void parse_general(int argc, char **argv);
     void parse_monitor(int argc, char **argv);
@@ -122,7 +122,8 @@ public:
     //
     // options for perfm.analyze
     // 
-    std::string metric_xml;
+    std::string metric_xml_filp = "perfm_metric.xml";
+    std::string pmu_val_filp    = "perfm.dat";
 
     bool thread_view;
     bool core_view;
@@ -143,6 +144,8 @@ public:
                                        * - for command line options, use: -e "event1,event2;event3,event4;..."
                                        * - elems in egroups are in the form: "event1,event2,..."
                                        */
+
+    const std::string sys_topology_filp = "__perfm_sys_topology_file.txt";
 };
 
 extern options perfm_options; /* the global configure options for perfm */

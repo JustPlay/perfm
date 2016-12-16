@@ -57,7 +57,7 @@ public:
     static ptr_t alloc();
 
     void build();
-    void print();
+    void print(const char *filp = NULL);
 
 private:
     void build_cpu_present_list();

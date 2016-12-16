@@ -152,7 +152,7 @@ int str_find(char **argv, int argc, const char *trg)
     return -1;
 }
 
-std::vector<std::string> str_split(const std::string &str, const std::string &del, size_t limit)
+std::vector<std::string> str_split(const std::string &str, const std::string &del, size_t limit, bool ignore_empty)
 {
     std::vector<std::string> result;
 
@@ -177,8 +177,12 @@ std::vector<std::string> str_split(const std::string &str, const std::string &de
     while (limit && search < str.size()) {
         target = str.find(del, search);
         if (target != std::string::npos) {
-            result.push_back(std::move(str.substr(search, target - search)));
-            search = --limit ? target + del.size() : target;
+            if (ignore_empty && target == search) {
+                search += del.size();  
+            } else {
+                result.push_back(std::move(str.substr(search, target - search)));
+                search = --limit ? target + del.size() : target;
+            }
         } else {
             result.push_back(std::move(str.substr(search)));
             break;

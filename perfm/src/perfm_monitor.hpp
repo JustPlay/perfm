@@ -27,6 +27,7 @@ public:
 
     ~monitor();
 
+    void init();
     void open();
     void close();
 

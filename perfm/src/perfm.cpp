@@ -4,6 +4,7 @@
 #include "perfm_monitor.hpp"
 #include "perfm_analyzer.hpp"
 #include "perfm_top.hpp"
+#include "perfm_topology.hpp"
 
 #include <cstdio>
 #include <cstdlib>
@@ -22,15 +23,20 @@
 
 namespace perfm {
     
-inline bool perf_event_avail()
+inline bool perf_event_available()
 {
-    return ::access("/proc/sys/kernel/perf_event_paranoid", F_OK) == 0 ? true : false;
+    return ::access("/proc/sys/kernel/perf_event_paranoid", F_OK) == 0;
 }
 
 void run_monitor()
 {
-    if (!perf_event_avail()) {
+    if (!perf_event_available()) {
         perfm_fatal("perf_event NOT supported, exiting...\n");
+    }
+
+    if (geteuid() != 0) {
+        fprintf(stderr, "%s: linux's perf_event requires root privilege to do system-wide monitor\n", program);
+        exit(EXIT_FAILURE);
     }
 
     pfm_err_t ret = pfm_initialize();
@@ -38,19 +44,30 @@ void run_monitor()
         perfm_fatal("pfm_initialize() failed, %s\n", pfm_strerror(ret));
     }
 
-    /* TODO */
-
     perfm::monitor::ptr_t m = perfm::monitor::alloc();
+    if (!m) {
+        perfm_fatal("failed to alloc the monitor object\n");
+    }
+
+    m->init();
     m->open();
     m->start();
     m->close();
 
     pfm_terminate();
+
+    perfm::topology::ptr_t topology = perfm::topology::alloc();
+    if (!topology) {
+        perfm_fatal("failed to alloc the topology object\n");
+    }
+
+    topology->build();
+    topology->print(perfm_options.sys_topology_filp.c_str());
 }
 
 void run_sampler()
 {
-    if (!perf_event_avail()) {
+    if (!perf_event_available()) {
         perfm_fatal("perf_event NOT supported, exiting...\n");
     }
 
@@ -66,12 +83,21 @@ void run_sampler()
 
 void run_analyzer()
 {
-    perfm_fatal("TODO\n");
+    perfm::analyzer::ptr_t analyzer = perfm::analyzer::alloc();
+    if (!analyzer) {
+        perfm_fatal("failed to alloc the analyzer object\n");
+    }
+
+    analyzer->collect("perfm.dat");
+    analyzer->topology();
+    analyzer->parse();
+
+    /* TODO */
 }
 
 void run_topper()
 {
-    if (!perf_event_avail()) {
+    if (!perf_event_available()) {
         perfm_fatal("perf_event NOT supported, exiting...\n");
     }
 

@@ -10,12 +10,17 @@
 
 namespace perfm {
 
-analyzer::ptr_t analyzer::alloc() 
+const std::string analyzer::_thread_view_file = "__perfm_thread_view_summary.csv";
+const std::string analyzer::_core_view_file   = "__perfm_core_view_summary.csv";
+const std::string analyzer::_socket_view_file = "__perfm_socket_view_summary.csv";
+const std::string analyzer::_system_view_file = "__perfm_system_view_summary.csv";
+
+metric::ptr_t metric::alloc() 
 {
-    analyzer *p = nullptr;
+    metric *p = nullptr;
     
     try {
-        p = new analyzer;
+        p = new metric;
     } catch (const std::bad_alloc &) {
         p = nullptr;
     }
@@ -23,21 +28,189 @@ analyzer::ptr_t analyzer::alloc()
     return ptr_t(p);
 }
 
-void analyzer::collect(const char *filp)
+void metric::events_parse(const std::string &filp)
 {
-    if (!filp) {
+    std::fstream fp(filp, std::ios::in);
+    if (!fp.good()) {
+        perfm_fatal("failed to open %s\n", filp.c_str());
+    }
+
+    std::string line;
+    std::string evn;
+
+    //
+    // Performance Monitoring Events for Intel(R) Xeon(R)/Core Processor
+    // https://download.01.org/perfmon/
+    //
+
+    while (std::getline(fp, line)) {
+        if (line.empty()) {
+            continue;
+        }
+
+        evn = str_trim(line);
+        
+        if (evn.empty() || evn[0] == '#' || evn[0] == ';') {
+            continue;
+        }
+
+        // uncore PMU event 
+        if (env.find("UNC_") != std::string::npos) {
+            _ev_name.insert({env, PMU_UNCORE});
+            continue;
+        }
+
+        // offcore PMU event
+        if (env.find("OFFCORE_") != std::string::npos) {
+            _ev_name.insert({evn, PMU_OFFCORE}); 
+            continue;
+        }
+
+        // core PMU event
+        _ev_name.insert({evn, PMU_CORE});
+    }
+}
+
+void metric::metric_parse(const std::string &filp)
+{
+    void *xml_fil = read_file(filp.c_str());
+    if (!xml_fil) {
+        perfm_fatal("failed to read the metric file %s\n", filp.c_str());
+    }
+    
+    xml::xml_document<char> xml_doc; /* root of the XML DOM tree */
+
+    try {
+        xml_doc.parse<0>(static_cast<char *>(xml_fil));
+    } catch (const xml::parse_error &e) {
+        perfm_fatal("%s\n", e.what()); 
+        return;
+    }
+
+    xml::xml_node<char> *perfm = xml_doc.first_node("perfm");
+    if (!perfm) {
+        perfm_fatal("the root node must be <perfm></perfm>\n");
+    }
+
+    for (xml::xml_node<char> *metric = perfm->first_node(); metric; metric = metric->next_sibling()) {
+        metric_parse(metric);
+    }
+
+    free(xml_fil);
+}
+
+bool metric::metric_parse(xml::xml_node<char> *m)
+{
+    // metric name (uniq & non-empty)
+    xml::xml_attribute<char> *n = m->first_attribute("name");
+
+    if (!n || !n->value_size()) {
+        perfm_warn("metric must have a name\n");
+        return false;
+    }
+
+    std::string m_name(n->value(), n->value_size());         // metric name
+    std::string m_expr;                                      // metric expr
+    std::map<std::string, _ev_name_map_t::iterator> e_alias; // metric expr alias
+
+    // metric expr (non-empty)
+    for (xml::xml_node<char> *nd = m->first_node(); nd; nd = nd->next_sibling()) {
+        const size_t sz_nam = nd->name_size();
+        const size_t sz_val = nd->value_size();
+
+        if (!sz_nam || !sz_val) {
+            perfm_warn("invalid metric event/constant/formula/..., skiped\n");
+            continue;
+        }
+
+        const std::string nd_nam(nd->name(),  sz_nam); // namely "event", "constant", "forluma"
+        const std::string nd_val(nd->value(), sz_val); // event's name, constant var, forluma
+
+        if ("event" == nd_nam) {
+            xml::xml_attribute<char> *attr = nd->first_attribute("alias"); 
+
+            if (!attr || !attr->value_size()) {
+                perfm_warn("invalid alias for %s, %s\n", nd_nam.c_str(), nd_val.c_str());
+                continue;
+            }
+
+            std::string alias(attr->value(), attr->value_size());
+
+            auto event = _ev_name.find(nd_val);
+            if (event == _ev_name.end()) {
+                perfm_warn("TODO\n");
+            }
+
+            e_alias.insert({alias, event});
+
+            continue;
+        }
+        
+        if ("constant" == nd_nam) {
+            xml::xml_attribute<char> *attr = nd->first_attribute("alias"); 
+
+            if (!attr || !attr->value_size()) {
+                perfm_warn("invalid alias for %s, %s\n", nd_nam.c_str(), nd_val.c_str());
+                continue;
+            }
+            
+            std::string alias(attr->value(), attr->value_size());
+            auto constant = _ev_name.insert({nd_val, PMU_CONSTANT});
+
+            if (!constant.second && constant.first->second != PMU_CONSTANT) {
+                perfm_warn("TODO\n");
+            }
+
+            e_alias.insert({alias, constant});
+
+            continue;
+        }
+
+        if ("formula" == nd_nam) {
+            m_expr = nd_val;
+            break;
+        }
+    }
+
+    if (!m_name.empty() && !m_expr.empty() && !e_alias.empty()) {
+        this->_metrics_list.push_back(m_name);
+        this->_formula_list.insert({m_name, {m_expr, e_alias}});
+    } else {
+        perfm_warn("metric's name, formula or formula alias may be empty\n");
+        return false;
+    }
+   
+    return true;
+}
+
+pmu_val::ptr_t pmu_val::alloc() 
+{
+    pmu_val *p = nullptr;
+    
+    try {
+        p = new pmu_val;
+    } catch (const std::bad_alloc &) {
+        p = nullptr;
+    }
+
+    return ptr_t(p);
+}
+
+void pmu_val::collect(const std::string &filp)
+{
+    if (filp.empty()) {
         perfm_fatal("you must specify the file where the collected data was saved\n");
     }
 
     std::fstream fp(filp, std::ios::in);
     if (!fp.good()) {
-        perfm_fatal("failed to open file %s\n", filp);
+        perfm_fatal("failed to open %s\n", filp.c_str());
     }
 
     const std::string delimiter = " ";
     std::string line;
 
-    std::unordered_map<std::string, int> ev_count; // how many times one event has been counted
+    std::unordered_map<std::string, size_t> ev_count; // how many times one event has been counted
 
     // event_name, tsc_cycle, cpu0, cpu1, cpu2, ... (core PMU)
     // event_name, tsc_cycle, socket0, socket1, ... (uncore PMU)
@@ -57,9 +230,9 @@ void analyzer::collect(const char *filp)
             uint64_t val = 0;    
             try {
                 val = std::stoull(slice[i]);
-            } catch (const std::invalid_argument &e) {
+            } catch (const std::invalid_argument &) {
                 is_valid = false;
-            } catch (const std::out_of_range &e) {
+            } catch (const std::out_of_range &) {
                 is_valid = false;
             }
 
@@ -73,6 +246,8 @@ void analyzer::collect(const char *filp)
                 break;
             }
 
+            // tsc_cycle, cpu0, cpu1, cpu2, ... (core PMU)
+            // tsc_cycle, socket0, socket1, ... (uncore PMU)
             processor_pmu_val.push_back(val);
         }
 
@@ -98,21 +273,70 @@ void analyzer::collect(const char *filp)
     }
     
     for (auto iter = _ev_data.begin(); iter != _ev_data.end(); ++iter) {
-        int n = ev_count[iter->first];
+        size_t n = ev_count[iter->first];
 
         for (size_t i = 0; i < iter->second.size(); ++i) {
-            iter->second[i] /= static_cast<double>(n);
+            iter->second[i] /= n;
         }
     }
 }
 
-void analyzer::parse()
+analyzer::ptr_t analyzer::alloc() 
 {
-    if (perfm_options.metric_xml.empty()) {
-        metric_parse(); /* use ./perfm_metric.xml */
-    } else {
-        metric_parse(perfm_options.metric_xml.c_str());
+    analyzer *p = nullptr;
+    
+    try {
+        p = new analyzer;
+    } catch (const std::bad_alloc &) {
+        p = nullptr;
     }
+
+    return ptr_t(p);
+}
+
+void analyzer::topology()
+{
+    for (size_t i = 0; i < NR_CPU_MAX; ++i) {
+        _cpu[i] = std::make_tuple(false, -1, -1);    
+    }
+
+    std::fstream fp(perfm_options.sys_topology_filp, std::ios::in);
+    if (!fp.good()) {
+        perfm_fatal("failed to open %s\n", perfm_options.sys_topology_filp.c_str());
+    }
+
+    const std::string title = "[Processor] - [Core] - [Socket] - [Online]";
+    std::string line;
+
+    while (std::getline(fp, line)) {
+        if (line == title) {
+            break;
+        }
+    }
+
+    int processor, core, socket, online;
+    while (fp >> processor >> core >> socket >> online) {
+        _cpu[processor] = std::make_tuple(!!online, core, socket); 
+        ++_nr_thread;
+    }
+
+    /* TODO (some other thing) */
+}
+
+void analyzer::compute()
+{
+    this->_metric = metric::alloc();
+    if (!this->_metric) {
+        perfm_fatal("failed to alloc the metric object\n");
+    }
+
+    this->_pmu_val = pmu_val::alloc();
+    if (!this->_pmu_val) {
+        perfm_fatal("failed to alloc the pmu_val object\n");
+    }
+
+    this->_metric->parse(perfm_options.metric_xml_filp);
+    this->_pmu_val->collect(perfm_options.pmu_val_filp);
 
     if (perfm_options.thread_view) {
         perfm_fatal("TODO\n"); 
@@ -129,94 +353,6 @@ void analyzer::parse()
     if (perfm_options.system_view) {
         perfm_fatal("TODO\n"); 
     }
-}
-
-void analyzer::metric_parse(const char *filp)
-{
-    void *xml_fil = read_file(filp);
-    if (!xml_fil) {
-        perfm_fatal("failed to read the metric file %s\n", filp);
-    }
-    
-    xml::xml_document<char> xml_doc; /* root of the XML DOM tree */
-
-    try {
-        xml_doc.parse<0>(static_cast<char *>(xml_fil));
-    } catch (const xml::parse_error &e) {
-        perfm_fatal("%s\n", e.what()); 
-        return;
-    }
-
-    xml::xml_node<char> *perfm = xml_doc.first_node("perfm");
-    if (!perfm) {
-        perfm_fatal("the root node must be <perfm></perfm>\n");
-    }
-
-    for (xml::xml_node<char> *metric = perfm->first_node(); metric; metric = metric->next_sibling()) {
-        metric_parse(metric);
-    }
-
-    free(xml_fil);
-}
-
-bool analyzer::metric_parse(xml::xml_node<char> *metric)
-{
-    // metric name (uniq & non-empty)
-    xml::xml_attribute<char> *name = metric->first_attribute("name");
-
-    if (!name || !name->value_size()) {
-        perfm_warn("metric must have a name\n");
-        return false;
-    }
-
-    std::string m_name(name->value(), name->value_size());   // metric name
-    std::string m_expr;                                      // metric expr
-    std::map<std::string, _ev_name_map_t::iterator> e_alias; // metric expr alias
-
-    // metric expr (non-empty)
-    for (xml::xml_node<char> *node = metric->first_node(); node; node = node->next_sibling()) {
-        const size_t sz_nam = node->name_size();
-        const size_t sz_val = node->value_size();
-
-        if (!sz_nam || !sz_val) {
-            perfm_warn("invalid metric event/constant/formula/..., skiped\n");
-            continue;
-        }
-
-        const std::string nod_nam(node->name(),  sz_nam);
-        const std::string nod_val(node->value(), sz_val);
-
-        if ("event" == nod_nam || "constant" == nod_nam) {
-            xml::xml_attribute<char> *attr = node->first_attribute("alias"); 
-
-            if (!attr || !attr->value_size()) {
-                perfm_warn("invalid alias for %s, %s\n", nod_nam.c_str(), nod_val.c_str());
-                continue;
-            }
-
-            /* FIXME (pmu/event type) */
-            std::string nam(attr->value(), attr->value_size());             // alias name
-            auto ref = this->_ev_name.insert({nod_val, PMU_UNKNOWN}).first; // alias reference (event name)
-            e_alias.insert({nam, ref});
-
-            continue;
-        }
-        
-        if ("formula" == nod_nam) {
-            m_expr = nod_val;
-            break;
-        }
-    }
-
-    if (!m_name.empty() && !m_expr.empty() && !e_alias.empty()) {
-        this->_metrics_list.push_back(m_name);
-        this->_formula_list.insert({m_name, {m_expr, e_alias}});
-    } else {
-        perfm_warn("metric's name, formula or formula alias may be empty\n");
-        return false;
-    }
-   
-    return true;
 }
 
 void analyzer::metric_eval()
@@ -370,7 +506,7 @@ std::string analyzer::expr_in2postfix(const std::string &expr_infix) const
     return std::move(expr_postfix);
 }
 
-double analyzer::expr_eval(const _expression_t &formula) const
+double analyzer::expr_eval(const _expression_t &formula, size_t column) const
 {
     const auto  exprn = expr_in2postfix(formula.first); // std::string
     const auto &alias = formula.second;                 // std::map
@@ -429,7 +565,7 @@ double analyzer::expr_eval(const _expression_t &formula) const
                 }
 
                 /* FIXME */
-                stk.push(std::get<0>(data->second));
+                stk.push(data->second[column]);
             }
             break;
 

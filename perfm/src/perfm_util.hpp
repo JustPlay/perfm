@@ -121,13 +121,18 @@ int str_find(char **argv, int argc, const char *trg);
 /**
  * str_split - split a string by string
  *
- * @str    the input string to split
- * @del    the boundary string
- * @limit  if set and positive, the returned std::vector will contain a maximum of @limit + 1 
- *         elements with the last element containing the rest of @str (if it has ...)
- *         
- *         if the @limit parameter is zero or default, then it is treated 
- *         as @str.size() (as large as possible)
+ * @str           the input string to split
+ * @del           the boundary string
+ * @limit         if set and positive, the returned std::vector will contain a maximum of @limit + 1 
+ *                elements with the last element containing the rest of @str (if it has ...)
+ *                
+ *                if the @limit parameter is zero or default, then it is treated 
+ *                as @str.size() (as large as possible)
+ *
+ * @ignore_empty  ignore empty component, defaults to false. for example
+ *                when @str is "1,2,,3,," and @del is ",", 
+ *                if @ignore_empty is true, then the return component list will be "1", "2", "3",
+ *                otherwise, the return component list will be "1", "2", "", "3", ""
  *
  * Return:
  *     a std::vector of strings created by splitting the @str parameter on boundaries formed by the @del
@@ -135,7 +140,7 @@ int str_find(char **argv, int argc, const char *trg);
  * Description:  
  *     none
  */
-std::vector<std::string> str_split(const std::string &str, const std::string &del, size_t limit = 0);
+std::vector<std::string> str_split(const std::string &str, const std::string &del, size_t limit = 0, bool ignore_empty = false);
 
 /**
  * str_trim - remove characters in both left and right of the given string
@@ -250,6 +255,11 @@ inline bool pid_exist(int p)
 }
 
 inline bool cpu_exist(int c)
+{
+    return c >= 0 && ::access(std::string("/sys/devices/system/cpu/cpu" + std::to_string(c)).c_str(), F_OK) == 0;
+}
+
+inline bool cpu_online(int c)
 {
     // int sc_cpu_conf = sysconf(_SC_NPROCESSORS_CONF); /* should be constant, BUT in older version linux or glibc ... */
     // int sc_cpu_onln = sysconf(_SC_NPROCESSORS_ONLN); /* will change when do cpu hotplug */

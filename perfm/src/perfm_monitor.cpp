@@ -63,44 +63,9 @@ monitor::~monitor()
     }
 }
 
-void monitor::parse_cpu_list(const std::string &list)
+void monitor::init()
 {
-    std::vector<std::string> slice = str_split(list, ",");
-
-    for (size_t i = 0; i < slice.size(); ++i) {
-        if (slice[i].empty()) {
-            continue;
-        }
-
-        size_t pos = slice[i].find("-");
-
-        if (pos == std::string::npos) {
-            int c;
-            try {
-                c = std::stoi(slice[i]);
-            } catch (const std::exception &e) {
-                perfm_warn("%s %s\n", e.what(), slice[i].c_str());
-                continue;
-            }
-
-            ++_nr_select_cpu;
-            do_set(c);
-        } else {
-            int from, to;
-            try {
-                from = std::stoi(slice[i]);
-                to   = std::stoi(slice[i].substr(pos + 1));
-            } catch (const std::exception &e) {
-                perfm_warn("%s %s\n", e.what(), slice[i].c_str());
-                continue;
-            }
-
-            for (int c = from; c <= to; ++c) {
-                ++_nr_select_cpu;
-                do_set(c);
-            }
-        }
-    }
+    /* for now, do nothing */
 }
 
 void monitor::open()
@@ -119,22 +84,7 @@ void monitor::open()
     }
 
     // parse cpu list specified by user
-    if (perfm_options.cpu_list.empty()) {
-        for (unsigned int c = 0; c < _nr_total_cpu; ++c) {
-            ++_nr_select_cpu;
-            do_set(c);
-        }
-    } else {
-        parse_cpu_list(perfm_options.cpu_list);
-    }
-
-    for (unsigned int c = 0; c < _nr_total_cpu; ++c) {
-        if (is_set(c) && !cpu_exist(c)) {
-            perfm_warn("cpu %d does not online and will be ignored\n", c);
-            --_nr_select_cpu;
-            do_clr(c);
-        }
-    }
+    parse_cpu_list(perfm_options.cpu_list);
 
     int pid = perfm_options.pid;
     if (pid != -1 && !pid_exist(pid)) {
@@ -233,17 +183,6 @@ void monitor::rr(double second)
             ++n;
             
             _cpu_data[c][g]->read();
-        }
-
-        print(g, tsc_curr - tsc_prev);
-
-        for (unsigned int c = 0, n = 0; n < _nr_select_cpu && c < _nr_total_cpu; ++c) {
-            if (!is_set(c)) {
-                continue;
-            } 
-
-            ++n;
-
             _cpu_data[c][g]->stop();
         }
     }
@@ -298,6 +237,74 @@ void monitor::print(size_t g, uint64_t tsc_cycles) const
         fprintf(fp, "\n");
     }
     fprintf(fp, "\n");
+}
+
+void monitor::parse_cpu_list(const std::string &list)
+{
+    // if @list empty, select all online CPUs
+    if (list.empty()) {
+        for (unsigned int c = 0, n = 0; n < _nr_total_cpu; ++c) {
+            if (!cpu_exist(c)) {
+                continue;
+            }
+
+            ++n;
+
+            if (cpu_online(c)) {
+                ++_nr_select_cpu;
+                do_set(c);
+            }
+        }
+
+    // parse @list and eliminate the non-exist & off-line CPUs
+    } else {
+        std::vector<std::string> slice = str_split(list, ",");
+
+        for (size_t i = 0; i < slice.size(); ++i) {
+            if (slice[i].empty()) {
+                continue;
+            }
+
+            size_t pos = slice[i].find("-");
+
+            if (pos == std::string::npos) {
+                int c;
+                try {
+                    c = std::stoi(slice[i]);
+                } catch (const std::exception &e) {
+                    perfm_warn("%s %s\n", e.what(), slice[i].c_str());
+                    continue;
+                }
+
+                if (!cpu_exist(c) || !cpu_online(c)) {
+                    perfm_warn("cpu %d does not exist/online, ignored\n", c);
+                    continue;
+                }
+
+                ++_nr_select_cpu;
+                do_set(c);
+            } else {
+                int from, to;
+                try {
+                    from = std::stoi(slice[i]);
+                    to   = std::stoi(slice[i].substr(pos + 1));
+                } catch (const std::exception &e) {
+                    perfm_warn("%s %s\n", e.what(), slice[i].c_str());
+                    continue;
+                }
+
+                for (int c = from; c <= to; ++c) {
+                    if (!cpu_exist(c) || !cpu_online(c)) {
+                        perfm_warn("cpu %d does not exist/online, ignored\n", c);
+                        continue;
+                    }
+
+                    ++_nr_select_cpu;
+                    do_set(c);
+                }
+            }
+        }
+    }
 }
 
 } /* namespace perfm */

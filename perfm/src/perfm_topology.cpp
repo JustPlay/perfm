@@ -1,4 +1,5 @@
 #include "perfm_util.hpp"
+#include "perfm_option.hpp"
 #include "perfm_topology.hpp"
 
 #include <sys/types.h>
@@ -53,49 +54,7 @@ void topology::build()
 
     build_cpu_present_list();
 
-#ifndef NDEBUG
-    fprintf(stderr, "Processor presented: %2zu - ", _nr_cpu);
-    for (unsigned int c = 0, n = 0; n < _nr_cpu; ++c) {
-        if (!cpu_present(c)) {
-            continue;
-        }
-        ++n;
-        
-        if (c < 10) {
-            fprintf(stderr, "%-2u", c);
-        } else {
-            fprintf(stderr, "%-3u", c);
-        }
-    }
-    fprintf(stderr, "\n");
-#endif
-
     build_cpu_online_list();
-
-#ifndef NDEBUG
-    fprintf(stderr, "Processor online   : %2zu - ", _nr_onln_cpu);
-    for (unsigned int c = 0, n = 0; n < _nr_cpu; ++c) {
-        if (!cpu_present(c)) {
-            continue;
-        }
-        ++n;
-
-        if (!cpu_online(c)) {
-            if (c < 10) {
-                fprintf(stderr, "%-2s", "*");
-            } else {
-                fprintf(stderr, "%-3s", "*");
-            }
-        } else {
-            if (c < 10) {
-                fprintf(stderr, "%-2u", c);
-            } else {
-                fprintf(stderr, "%-3u", c);
-            }
-        }
-    }
-    fprintf(stderr, "\n");
-#endif
 
     //
     // for now, 
@@ -378,9 +337,17 @@ void topology::processor_hotplug(int cpu, int action) const
     }
 }
 
-void topology::print()
+void topology::print(const char *filp)
 {
-    FILE *fp = stdout;    
+    FILE *fp = stdout;
+
+    if (filp) {
+        fp = ::fopen(filp, "w");
+        if (!fp) {
+            fp = stdout;
+            perfm_warn("failed to open %s, will use stdout\n", filp);
+        }
+    }
 
     fprintf(fp, "------------------------------------------------------\n");
     fprintf(fp, "- Number of sockets (online/total)          : %zu/%zu\n", _nr_onln_socket, _nr_socket);
@@ -389,6 +356,7 @@ void topology::print()
     fprintf(fp, "- Physical cores per socket                 : %zu\n", _nr_core / _nr_socket);
     fprintf(fp, "- Threads (logical cores) per physical core : %zu\n", _nr_cpu / _nr_core); 
     fprintf(fp, "------------------------------------------------------\n");
+    fprintf(fp, "\n");
 
     auto compute_width = [](int a, int b, int c) -> int {
         a = a > b ? a : b;
@@ -415,8 +383,65 @@ void topology::print()
         column_width[n++] = compute_width(c, processor_core(c), processor_socket(c));
     }
 
+    fprintf(fp, "Processor presented: %2zu - ", _nr_cpu);
+    for (unsigned int c = 0, n = 0; n < _nr_cpu; ++c) {
+        if (!cpu_present(c)) {
+            continue;
+        }
+        ++n;
+        
+        switch (compute_width(c, 0, 0)) {
+        case 2:
+            fprintf(fp, "%-2u", c);
+            break;
+        case 3:
+            fprintf(fp, "%-3u", c);
+            break;
+        case 4:
+            fprintf(fp, "%-4u", c);
+            break;
+        }
+    }
+    fprintf(fp, "\n");
+
+    fprintf(fp, "Processor online   : %2zu - ", _nr_onln_cpu);
+    for (unsigned int c = 0, n = 0; n < _nr_cpu; ++c) {
+        if (!cpu_present(c)) {
+            continue;
+        }
+        ++n;
+
+        if (!cpu_online(c)) {
+            switch (compute_width(c, 0, 0)) {
+            case 2:
+                fprintf(fp, "%-2s", "*");
+                break;
+            case 3:
+                fprintf(fp, "%-3s", "*");
+                break;
+            case 4:
+                fprintf(fp, "%-4s", "*");
+                break;
+            }
+        } else {
+            switch (compute_width(c, 0, 0)) {
+            case 2:
+                fprintf(fp, "%-2u", c);
+                break;
+            case 3:
+                fprintf(fp, "%-3u", c);
+                break;
+            case 4:
+                fprintf(fp, "%-4u", c);
+                break;
+            }
+        }
+    }
+    fprintf(fp, "\n");
+    fprintf(fp, "\n");
+
     // processor list
-    fprintf(fp, "processor: ");
+    fprintf(fp, "Processor: ");
     for (unsigned int c = 0, n = 0; n < _nr_cpu; ++c) {
         if (!cpu_present(c)) {
             continue;
@@ -425,20 +450,20 @@ void topology::print()
 
         switch (column_width[n]) {
         case 2:
-            fprintf(fp, "%-2d", c);
+            fprintf(fp, "%2d", c);
             break;
         case 3:
-            fprintf(fp, "%-3d", c);
+            fprintf(fp, "%3d", c);
             break;
         case 4:
-            fprintf(fp, "%-4d", c);
+            fprintf(fp, "%4d", c);
             break;
         }
     }
     fprintf(fp, "\n");
 
     // physical core list
-    fprintf(fp, "core id:   ");
+    fprintf(fp, "Core id:   ");
     for (unsigned int c = 0, n = 0; n < _nr_cpu; ++c) {
         if (!cpu_present(c)) {
             continue;
@@ -447,20 +472,20 @@ void topology::print()
 
         switch (column_width[n]) {
         case 2:
-            fprintf(fp, "%-2d", processor_core(c));
+            fprintf(fp, "%2d", processor_core(c));
             break;
         case 3:
-            fprintf(fp, "%-3d", processor_core(c));
+            fprintf(fp, "%3d", processor_core(c));
             break;
         case 4:
-            fprintf(fp, "%-4d", processor_core(c));
+            fprintf(fp, "%4d", processor_core(c));
             break;
         }
     }
     fprintf(fp, "\n");
 
     // socket list
-    fprintf(fp, "socket id: ");
+    fprintf(fp, "Socket id: ");
     for (unsigned int c = 0, n = 0; n < _nr_cpu; ++c) {
         if (!cpu_present(c)) {
             continue;
@@ -469,17 +494,32 @@ void topology::print()
 
         switch (column_width[n]) {
         case 2:
-            fprintf(fp, "%-2d", processor_socket(c));
+            fprintf(fp, "%2d", processor_socket(c));
             break;
         case 3:
-            fprintf(fp, "%-3d", processor_socket(c));
+            fprintf(fp, "%3d", processor_socket(c));
             break;
         case 4:
-            fprintf(fp, "%-4d", processor_socket(c));
+            fprintf(fp, "%4d", processor_socket(c));
             break;
         }
     }
     fprintf(fp, "\n");
+    fprintf(fp, "\n");
+
+    fprintf(fp, "------------------------------------------\n");
+    fprintf(fp, "[Processor] - [Core] - [Socket] - [Online]\n");
+    for (unsigned int c = 0, n = 0; n < _nr_cpu; ++c) {
+        if (!cpu_present(c)) {
+            continue;
+        }
+        ++n;
+
+        fprintf(fp, "%7d       %4d     %5d       %4d\n", c, processor_core(c), processor_socket(c), cpu_online(c) ? 1 : 0);
+    }
+    fprintf(fp, "------------------------------------------\n");
+
+    fp != stdout ? ::fclose(fp) : 0;
 }
 
 } /* namespace perfm */
