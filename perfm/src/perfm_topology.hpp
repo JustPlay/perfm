@@ -6,6 +6,8 @@
 #ifndef __PERFM_TOPOLOGY_HPP__
 #define __PERFM_TOPOLOGY_HPP__
 
+#include "perfm_config.hpp"
+
 #include <cstdio>
 #include <cstdlib>
 #include <memory>
@@ -48,8 +50,6 @@ namespace perfm {
 // nearly all the above entities will be affected when doing processor hotplug
 
 class topology {
-public:
-    static constexpr size_t NR_CPU_MAX = 512;
 
 public:
     using ptr_t = std::shared_ptr<topology>;
@@ -71,15 +71,6 @@ private:
 private:
     static const std::string cpu_directory;
 
-    /* for now, we assume the following limits:
-     * - the maximum # of threads/core is 8
-     * - the maximum # of cores/socket is 64
-     * - the maximum # of socket is 8
-     */
-    static constexpr size_t _nr_max_smt_per_core = 8;
-    static constexpr size_t _nr_max_core_per_skt = 64;
-    static constexpr size_t _nr_max_socket       = 8; 
-                                               
     size_t _nr_cpu;         /* number of cpus/processors/threads */
     size_t _nr_core;        /* number of physical cores */
     size_t _nr_socket;      /* number of sockets */
@@ -88,26 +79,26 @@ private:
     size_t _nr_onln_core;   /* number of online cores */
     size_t _nr_onln_socket; /* number of online sockets */
 
-    std::bitset<NR_CPU_MAX> _cpu_present_list;
-    std::bitset<NR_CPU_MAX> _cpu_online_list;
+    std::bitset<NR_MAX_PROCESSOR> _cpu_present_list;
+    std::bitset<NR_MAX_PROCESSOR> _cpu_online_list;
     #define cpu_present(cpu) _cpu_present_list.test((cpu)) /* is (logical) processor @cpu presented ? */
     #define cpu_online(cpu)  _cpu_online_list.test((cpu))  /* is (logical) processor @cpu online ? */
 
-    std::bitset<_nr_max_socket> _socket_present_list;
-    std::bitset<_nr_max_socket> _socket_online_list;
+    std::bitset<NR_MAX_SOCKET> _socket_present_list;
+    std::bitset<NR_MAX_SOCKET> _socket_online_list;
     #define skt_present(skt) _socket_present_list.test((skt)) /* is socket presented ? */
     #define skt_online(skt)  _socket_online_list.test((skt))  /* is socket online ? */
 
-    using _core2thrds_map_t = std::array<int, _nr_max_smt_per_core>;  
+    using _core2thrds_map_t = std::array<int, NR_MAX_SMT_PER_CORE>;  
 
-    std::tuple<bool, int, _core2thrds_map_t> _topology[_nr_max_socket][_nr_max_core_per_skt];           
+    std::tuple<bool, int, _core2thrds_map_t> _topology[NR_MAX_SOCKET][NR_MAX_CORE_PER_SKT];           
     #define is_core_exist(skt, core) std::get<0>(_topology[(skt)][(core)]) /* core (physical) exist? core's id may be discontinuous */
     #define nr_core_thrds(skt, core) std::get<1>(_topology[(skt)][(core)]) /* how many threads (logical) share this core */
     #define threads_array(skt, core) std::get<2>(_topology[(skt)][(core)]) /* processor/cpu (logical) list on this core (physical) */
 
-    std::array<std::pair<int, int>, NR_CPU_MAX> _cpu; /* subscript is (logical) processor's id
-                                                       * array type is: <core, socket>
-                                                       */
+    std::array<std::pair<int, int>, NR_MAX_PROCESSOR> _cpu; /* subscript is (logical) processor's id
+                                                             * array type is: <core, socket>
+                                                             */
     #define processor_core(c)   _cpu[(c)].first
     #define processor_socket(c) _cpu[(c)].second
 };

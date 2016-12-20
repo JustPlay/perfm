@@ -88,9 +88,12 @@ void run_analyzer()
         perfm_fatal("failed to alloc the analyzer object\n");
     }
 
-    analyzer->collect("perfm.dat");
+    // build cpu topology first
     analyzer->topology();
-    analyzer->parse();
+
+    analyzer->collect();
+
+    analyzer->compute();
 
     /* TODO */
 }

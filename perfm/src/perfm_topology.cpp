@@ -45,8 +45,8 @@ void topology::build()
     _socket_present_list.reset();
     _socket_online_list.reset();
 
-    for (unsigned int s = 0; s < _nr_max_socket; ++s) {
-        for (unsigned int c = 0; c < _nr_max_core_per_skt; ++c) {
+    for (unsigned int s = 0; s < NR_MAX_SOCKET; ++s) {
+        for (unsigned int c = 0; c < NR_MAX_CORE_PER_SKT; ++c) {
             is_core_exist(s, c) = false;
             nr_core_thrds(s, c) = 0;
         }
@@ -241,14 +241,14 @@ void topology::build_cpu_topology()
     }
 
     // build the 'processor => <core, socket>' map
-    for (unsigned int s = 0, n = 0; n < _nr_socket && s < _nr_max_socket; ++s) {
+    for (unsigned int s = 0, n = 0; n < _nr_socket && s < NR_MAX_SOCKET; ++s) {
         if (!skt_present(s)) {
             continue;
         }
 
         ++n;
 
-        for (unsigned int c = 0; c < _nr_max_core_per_skt; ++c) {
+        for (unsigned int c = 0; c < NR_MAX_CORE_PER_SKT; ++c) {
             if (!is_core_exist(s, c)) {
                 continue;
             }

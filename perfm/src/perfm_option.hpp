@@ -123,7 +123,7 @@ public:
     // options for perfm.analyze
     // 
     std::string metric_xml_filp = "perfm_metric.xml";
-    std::string pmu_val_filp    = "perfm.dat";
+    std::string pmu_value_filp  = "perfm.txt";
 
     bool thread_view;
     bool core_view;

@@ -6,6 +6,7 @@
 #define __PERFM_ANALYZER_HPP__
 
 #include "perfm_util.hpp"
+#include "perfm_config.hpp"
 #include "perfm_option.hpp"
 #include "perfm_xml.hpp"
 
@@ -17,14 +18,23 @@
 #include <unordered_set>
 #include <utility>
 #include <tuple>
+#include <array>
 #include <memory>
 
 namespace perfm {
 
 namespace xml = rapidxml;
 
+enum {
+    PMU_CORE = 0,  /* core PMU */
+    PMU_OFFCORE,   /* offcore PMU */
+    PMU_UNCORE,    /* uncore PMU (socket level) */
+    PMU_CONSTANT,  /* constant value */
+    PMU_UNKNOWN,   /* unknown type */
+    PMU_TYPE_MAX
+};
+
 class metric;
-class pmu_val;
 class analyzer;
 
 class metric {
@@ -34,15 +44,6 @@ public:
     using ptr_t = std::shared_ptr<metric>;
 
 private:
-    enum {
-        PMU_CORE = 0,  /* core PMU */
-        PMU_UNCORE,    /* uncore PMU (socket level) */
-        PMU_OFFCORE,   /* offcore PMU */
-        PMU_CONSTANT,  /* constant value */
-        PMU_UNKNOWN,   /* unknown type */
-        PMU_TYPE_MAX
-    };
-
     /* name=>type
      *
      * key: event's name string
@@ -59,6 +60,8 @@ public:
     void metric_parse(const std::string &filp);
     void events_parse(const std::string &filp);
 
+    int evn2type(const std::string &evn);
+
 private:
     bool metric_parse(xml::xml_node<char> *m);
 
@@ -74,41 +77,6 @@ private:
     _ev_name_map_t _ev_name;  /* event name=>type list */
 };
 
-class pmu_val {
-    friend class analyzer;
-
-public:
-    using ptr_t = std::shared_ptr<pmu_val>;
-
-private:
-
-    /* data format for one event (with multiple processors/cores/sockets, a.k.a multiple cloumns)
-     * 
-     * first:  64-bit unsigned integer - | un-used (24-bit) | processor_id (16-bit) | core_id (16-bit) | socket_id (8-bit) |
-     * second: event's pmu value (aggregated & averaged)
-     * 
-     * processor_id: global uniq (/sys/devices/system/cpu/cpuX)
-     * core_id:      uniq in socket level (may be discontinuous)
-     * socket_id:    uniq in system level
-     */
-    using _ev_data_fmt_t = std::vector<std::pair<uint64_t, double>>;
-
-    /* name=>data
-     *
-     * key: event's name string
-     * val: event's pmu value
-     */
-    using _ev_data_map_t = std::unordered_map<std::string, _ev_data_fmt_t>;
-
-public:
-    static ptr_t alloc();
-
-    void collect(const std::string &filp);
-
-private:
-    _ev_data_map_t _ev_data;  /* event name=>data list, averaged value */
-};
-
 class analyzer {
 public:
     using ptr_t = std::shared_ptr<analyzer>;
@@ -116,7 +84,10 @@ public:
 public:
     static ptr_t alloc();
 
-    void topology();
+    void topology(const std::string &filp = "");
+
+    void collect(const std::string &filp = "");
+
     void compute();
 
 private:
@@ -127,27 +98,100 @@ private:
 
     double expr_eval(const _expression_t &expr, size_t column) const;
 
+    void insert(const std::string &evn, const std::vector<double> &val);
+    void average(const std::unordered_map<std::string, size_t> &ev_count);
+
 private:
+    /* data format for one PMU event
+     *
+     * since event may be collected simultaneously on multiple processors, cores, sockets and so
+     * we use a std::array. for each of the processors/cores/sockets, there exists a elem in the array
+     * 
+     * event's PMU value are aggregated & averaged by multiple samples (so we use double, not uint64_t)
+     */
+    using _ev_thrd_elem_t   = std::array<double, NR_MAX_PROCESSOR>;
+    using _ev_core_elem_t   = std::array<double, NR_MAX_CORE>;
+    using _ev_socket_elem_t = std::array<double, NR_MAX_SOCKET>;
+    using _ev_system_elem_t = std::array<double, 1U>;
+
+    /* name=>data list
+     *
+     * key: event's name string
+     * val: event's pmu value (a smart pointer to std::array)
+     */
+    using _ev_thrd_t   = std::unordered_map<std::string, std::shared_ptr<_ev_thrd_elem_t>>;
+    using _ev_core_t   = std::unordered_map<std::string, std::shared_ptr<_ev_core_elem_t>>;
+    using _ev_socket_t = std::unordered_map<std::string, std::shared_ptr<_ev_socket_elem_t>>;
+    using _ev_system_t = std::unordered_map<std::string, std::shared_ptr<_ev_system_elem_t>>;
+
+private:
+    metric::ptr_t  _metric;
+
     int _nr_thread;
     int _nr_core;
     int _nr_socket;
     int _nr_system = 1;
 
-    metric::ptr_t  _metric;
-    pmu_val::ptr_t _pmu_val;
+    /* event data list, processor level, only for core PMU events
+     *
+     * key: event's name string
+     * val: an array, the sub-script *is* the logical processor's id
+     *
+     * the logical processor's id can be obtained either from 
+     *   "/proc/cpuinfo" 
+     * or 
+     *   "/sys/devices/system/cpu/"
+     *
+     * processor_id: global uniq (/sys/devices/system/cpu/cpuX)
+     * core_id:      uniq in socket level (may be discontinuous)
+     * socket_id:    uniq in system level
+     */
+    _ev_thrd__t _ev_thread;
 
-    const static std::string _thread_view_file;
-    const static std::string _core_view_file;
-    const static std::string _socket_view_file;
-    const static std::string _system_view_file;
+    /* event data list, physical core level, only for core PMU events
+     * 
+     * key: event's name string
+     * val: an array, the sub-script is *maped* to core's id
+     *
+     * E5-2650V4 has 12 cores with core id: 0,1,2,3,4,5,8,9,10,11,12,13
+     *    0-13:  cores for socket0 (include non-exist cores)
+     *    14-27: cores for socket1
+     */
+    _ev_core_t _ev_core;
 
-    static constexpr size_t NR_CPU_MAX = 512;
-    std::array<std::tuple<bool, int, int>, NR_CPU_MAX> _cpu; /* subscript is (logical) processor's id
-                                                              * array type is: <online, core, socket>
-                                                              */
-    #define processor_online(c) std::get<0>(_cpu[(c)])
-    #define processor_core(c)   std::get<1>(_cpu[(c)])
-    #define processor_socket(c) std::get<2>(_cpu[(c)])
+    /* event name list, socket level, for all events (core & uncore PMU events)
+     *
+     * key: event's name string
+     * val: an array, the sub-script is the socket's id
+     */
+    _ev_socket_t _ev_socket;
+
+    /* event name list, system level, for all events (core & uncore PMU events)
+     *
+     * key: event's name string
+     * val: an array(with just 1 elem), the sub-script should always be 0
+     */
+    _ev_system_t _ev_system;
+
+    const static std::string _thread_view_filp;
+    const static std::string _core_view_filp;
+    const static std::string _socket_view_filp;
+    const static std::string _system_view_filp;
+
+    /* subscript is (logical) processor's id
+     * array type is: <status, coreid, socket>
+     *
+     * status - -1: not presented, 0: not online, 1: online
+     * coreid - physical core id
+     * socket - socket id (physical package id)
+     */
+    std::array<std::tuple<int, int, int>, NR_MAX_PROCESSOR> _cpu_topology;
+                                                                           
+    #define processor_status(c)  std::get<0>(_cpu_topology[(c)])
+    #define processor_coreid(c)  std::get<1>(_cpu_topology[(c)])
+    #define processor_socket(c)  std::get<2>(_cpu_topology[(c)])
+
+    #define processor_online(c)  processor_status(c) == 1
 };
 
 } /* namespace perfm */

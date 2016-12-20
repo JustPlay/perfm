@@ -183,12 +183,22 @@ bool metric::metric_parse(xml::xml_node<char> *m)
     return true;
 }
 
-pmu_val::ptr_t pmu_val::alloc() 
+int metric::evn2type(const std::string &evn)
 {
-    pmu_val *p = nullptr;
+    auto it = _ev_name.find(evn);
+    if (it != _ev_name.end()) {
+        return it->second;
+    }
+
+    return PMU_UNKNOWN;
+}
+
+analyzer::ptr_t analyzer::alloc() 
+{
+    analyzer *p = nullptr;
     
     try {
-        p = new pmu_val;
+        p = new analyzer;
     } catch (const std::bad_alloc &) {
         p = nullptr;
     }
@@ -196,15 +206,84 @@ pmu_val::ptr_t pmu_val::alloc()
     return ptr_t(p);
 }
 
-void pmu_val::collect(const std::string &filp)
+void analyzer::topology(const std::string &filp)
 {
-    if (filp.empty()) {
-        perfm_fatal("you must specify the file where the collected data was saved\n");
+    for (size_t i = 0; i < NR_MAX_PROCESSOR; ++i) {
+        _cpu_topology[i] = std::make_tuple(-1, -1, -1);    
     }
 
-    std::fstream fp(filp, std::ios::in);
+    _nr_thread = 0;
+    _nr_core   = 0;
+    _nr_socket = 0;
+    _nr_system = 1;
+
+    std::fstream fp;
+
+    if (filp.empty()) {
+        fp.open(perfm_options.sys_topology_filp, std::ios::in);
+    } else {
+        fp.open(filp, std::ios::in);
+    }
+
     if (!fp.good()) {
-        perfm_fatal("failed to open %s\n", filp.c_str());
+        perfm_fatal("failed to open %s\n", filp.empty() ? perfm_options.sys_topology_filp.c_str() : filp.c_str());
+    }
+
+    const std::string title = "[Processor] - [Core] - [Socket] - [Online]";
+    std::string line;
+
+    while (std::getline(fp, line)) {
+        if (line == title) {
+            break;
+        }
+    }
+
+    if (!fp.good()) {
+        perfm_fatal("failed to read %s\n", filp.empty() ? perfm_options.sys_topology_filp.c_str() : filp.c_str());
+    }
+
+    int cpu, core, socket, online;
+    while (fp >> cpu >> core >> socket >> online) {
+        _cpu_topology[cpu] = std::make_tuple(online, core, socket); 
+        ++_nr_thread;
+    }
+
+    std::set<int> skt;
+    std::set<std::pair<int, int>> core;
+
+    for (unsigned int c = 0, n = 0; n < _nr_thread; ++c) {
+        if (processor_stauts(c) == -1) {
+            continue;
+        }
+        ++n;
+
+        int coreid = processor_coreid(c);
+        int socket = processor_socket(c);
+
+        if (!skt.count(socket)) {
+            ++_nr_socket;
+            skt.insert(socket);
+        }
+
+        if (!core.count({coreid, socket})) {
+            ++_nr_core;
+            core.insert({coreid, socket});
+        }
+    }
+}
+
+void analyzer::collect(const std::string &filp)
+{
+    std::fstream fp;
+
+    if (filp.empty()) {
+        fp.open(perfm_options.pmu_value_filp, std::ios::in);
+    } else {
+        fp.open(filp.c_str(), std::ios::in);
+    }
+
+    if (!fp.good()) {
+        perfm_fatal("failed to open %s\n", filp.empty() ? perfm_options.pmu_value_filp.c_str() : filp.c_str());
     }
 
     const std::string delimiter = " ";
@@ -222,11 +301,14 @@ void pmu_val::collect(const std::string &filp)
 
         auto slice = str_split(line, delimiter);
 
-        std::vector<double> processor_pmu_val;
-        std::string processor_event_nam = slice[0];
+        std::string nam_event = std::move(slice[0]);
+        uint64_t tsc_cycle    = slice[1];
+
+        std::vector<double> pmu_value;
+
         bool is_valid = true;
         
-        for (size_t i = 1; is_valid && i < slice.size(); ++i) {
+        for (size_t i = 2; is_valid && i < slice.size(); ++i) {
             uint64_t val = 0;    
             try {
                 val = std::stoull(slice[i]);
@@ -241,14 +323,14 @@ void pmu_val::collect(const std::string &filp)
             }
 
             /* FIXME */
-            if (!processor_pmu_val.empty() && val > processor_pmu_val[0]) {
+            if (val > tsc_cycle) {
                 is_valid = false;
                 break;
             }
 
-            // tsc_cycle, cpu0, cpu1, cpu2, ... (core PMU)
-            // tsc_cycle, socket0, socket1, ... (uncore PMU)
-            processor_pmu_val.push_back(val);
+            // cpu0, cpu1, cpu2, ... (core PMU)
+            // socket0, socket1, ... (uncore PMU)
+            pmu_value.push_back(val);
         }
 
         if (!is_valid) {
@@ -256,87 +338,140 @@ void pmu_val::collect(const std::string &filp)
             continue;
         }
 
-        auto iter = _ev_data.find(processor_event_nam);
-        if (iter == _ev_data.end()) {
-            ev_count[processor_event_nam] = 1;
-            _ev_data.insert({std::move(processor_event_nam), std::move(processor_pmu_val)});
-        } else {
-            if (iter->second.size() != processor_pmu_val.size()) {
-                perfm_fatal("event format not consistent\n");
-            }
-
-            ++ev_count[processor_event_nam];
-            for (size_t i = 0; i < processor_pmu_val.size(); ++i) {
-                iter->second[i] += processor_pmu_val[i];
-            }
-        }
+        insert(nam_event, pmu_value);
     }
-    
-    for (auto iter = _ev_data.begin(); iter != _ev_data.end(); ++iter) {
-        size_t n = ev_count[iter->first];
 
-        for (size_t i = 0; i < iter->second.size(); ++i) {
-            iter->second[i] /= n;
+    average(ev_count);   
+}
+
+void analyzer::insert(const std::string &evn, const std::vector<double> &val)
+{
+    switch (this->_metric->evn2type(evn)) {
+    case PMU_CORE:
+    case PMU_OFFCORE:
+        if (val.size() != this->_nr_thread) {
+            perfm_fatal("core/offcore PMU event should be collected for each presented CPUs\n");
         }
+
+        {
+            auto it = this->_ev_thread.find(evn);
+            if (it == this->_ev_thread.end()) {
+                _ev_thrd_elem_t *p = nullptr;
+                try {
+                    p = new _ev_thrd_elem_t;
+                } catch (const std::bad_alloc &) {
+                    perfm_fatal("failed to alloc memory\n");
+                }
+
+                for (size_t c = 0, n = 0; n < val.size(); ++c) {
+                    if (processor_status(c) == -1) {
+                        continue;
+                    }
+                    ++n;
+
+                    p[c] = val[n];
+                }
+
+                this->_ev_thread.insert({evn, std::shared_ptr<_ev_thrd_elem_t>(p)});
+
+            } else {
+                for (size_t c = 0, n = 0; n < val.size(); ++c) {
+                    if (processor_status(c) == -1) {
+                        continue;
+                    }
+                    ++n;
+
+                    (*(it->second))[c] += val[n];
+                }
+            }
+        }
+
+        break;
+
+    case PMU_UNCORE:
+        if (val.size() != this->_nr_socket) {
+            perfm_fatal("uncore PMU event should be collected for each presented sockets\n");
+        }
+
+        {
+            auto it = this->_ev_socket.find(evn);
+            if (it == this->_ev_socket.end()) {
+                _ev_socket_elem_t *p = nullptr;
+                try {
+                    p = new _ev_socket_elem_t;
+                } catch (const std::bad_alloc &) {
+                    perfm_fatal("failed to alloc memory\n");
+                }
+
+                for (size_t i = 0; i < val.size(); ++i) {
+                    p[i] = val[i];
+                }
+
+                this->_ev_socket.insert({evn, std::shared_ptr<_ev_socket_elem_t>(p)});
+
+            } else {
+                for (size_t i = 0; i < val.size(); ++i) {
+                    (*(it->second))[i] += val[i];
+                }
+            }
+        }
+
+        break; 
+
+    case PMU_CONSTANT:
+        perfm_fatal("not impled\n");
+        break;
+
+    case PMU_UNKNOWN:
+        perfm_fatal("not impled\n");
+        break;
+
+    default:
+        perfm_fatal("not impled\n");
+        ;
     }
 }
 
-analyzer::ptr_t analyzer::alloc() 
+void analyzer::average(const std::unordered_map<std::string, size_t> &ev_count)
 {
-    analyzer *p = nullptr;
-    
-    try {
-        p = new analyzer;
-    } catch (const std::bad_alloc &) {
-        p = nullptr;
-    }
+    // core/offcore PMU events are related to each presented (logical) CPUs 
+    for (auto it = _ev_thread.begin(); it != _ev_thread.end(); ++it) {
+        size_t cntr = ev_count[it->first];
 
-    return ptr_t(p);
-}
+        for (unsigned int c = 0, n = 0; n < _nr_thread; ++c) {
+            if (processor_status(c) == -1) {
+                continue;
+            }
+            ++n;
 
-void analyzer::topology()
-{
-    for (size_t i = 0; i < NR_CPU_MAX; ++i) {
-        _cpu[i] = std::make_tuple(false, -1, -1);    
-    }
-
-    std::fstream fp(perfm_options.sys_topology_filp, std::ios::in);
-    if (!fp.good()) {
-        perfm_fatal("failed to open %s\n", perfm_options.sys_topology_filp.c_str());
-    }
-
-    const std::string title = "[Processor] - [Core] - [Socket] - [Online]";
-    std::string line;
-
-    while (std::getline(fp, line)) {
-        if (line == title) {
-            break;
+            (*(it->second)[c] /= cntr;
         }
     }
 
-    int processor, core, socket, online;
-    while (fp >> processor >> core >> socket >> online) {
-        _cpu[processor] = std::make_tuple(!!online, core, socket); 
-        ++_nr_thread;
-    }
+    // uncore PMU events are related to socket (not CPUs)
+    for (auto it = _ev_socket.begin(); it != _ev_socket.end(); ++it) {
+        size_t cntr = ev_count[it->first];
 
-    /* TODO (some other thing) */
+        for (unsigned int c = 0, n = 0; n < _nr_socket; ++c) {
+            if (processor_status(c) == -1) {
+                continue;
+            }
+            ++n;
+
+            (*(it->second)[c] /= cntr;
+        }
+    }
 }
 
 void analyzer::compute()
 {
+    /* FIXME */
     this->_metric = metric::alloc();
     if (!this->_metric) {
         perfm_fatal("failed to alloc the metric object\n");
     }
 
-    this->_pmu_val = pmu_val::alloc();
-    if (!this->_pmu_val) {
-        perfm_fatal("failed to alloc the pmu_val object\n");
-    }
-
-    this->_metric->parse(perfm_options.metric_xml_filp);
-    this->_pmu_val->collect(perfm_options.pmu_val_filp);
+    /* TODO */
 
     if (perfm_options.thread_view) {
         perfm_fatal("TODO\n"); 
@@ -347,7 +482,7 @@ void analyzer::compute()
     }
 
     if (perfm_options.socket_view) {
-        perfm_fatal("TODO\n"); 
+        for (size_t i = 0; i < _nr_thread
     }
 
     if (perfm_options.system_view) {
