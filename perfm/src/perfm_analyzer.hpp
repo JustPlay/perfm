@@ -84,22 +84,30 @@ public:
 public:
     static ptr_t alloc();
 
+    void analyze(/* TODO */);
+
+private:
     void topology(const std::string &filp = "");
 
     void collect(const std::string &filp = "");
 
     void compute();
 
-private:
+    void insert(const std::string &evn, const std::vector<double> &val);
+    void average(const std::unordered_map<std::string, size_t> &ev_count);
+
+    void thrd_compute();
+    void core_compute();
+
+    void socket_compute();
+    void system_compute();
+
     void eval(/* TODO */);
     void eval(/* TODO */const _metric_nam_t &metric);
 
     std::string expr_in2postfix(const std::string &infix) const;
 
     double expr_eval(const _expression_t &expr, size_t column) const;
-
-    void insert(const std::string &evn, const std::vector<double> &val);
-    void average(const std::unordered_map<std::string, size_t> &ev_count);
 
 private:
     /* data format for one PMU event
@@ -127,10 +135,10 @@ private:
 private:
     metric::ptr_t  _metric;
 
-    int _nr_thread;
-    int _nr_core;
-    int _nr_socket;
-    int _nr_system = 1;
+    unsigned int _nr_thread;
+    unsigned int _nr_core;
+    unsigned int _nr_socket;
+    unsigned int _nr_system = 1;
 
     /* event data list, processor level, only for core PMU events
      *
@@ -146,16 +154,17 @@ private:
      * core_id:      uniq in socket level (may be discontinuous)
      * socket_id:    uniq in system level
      */
-    _ev_thrd__t _ev_thread;
+    _ev_thrd_t _ev_thread;
 
     /* event data list, physical core level, only for core PMU events
      * 
      * key: event's name string
      * val: an array, the sub-script is *maped* to core's id
-     *
-     * E5-2650V4 has 12 cores with core id: 0,1,2,3,4,5,8,9,10,11,12,13
-     *    0-13:  cores for socket0 (include non-exist cores)
-     *    14-27: cores for socket1
+     * 
+     * if N = NR_MAX_CORE_PER_SKT, then: 
+     *   [0, N - 1]:          cores for socket0 (include non-exist cores)
+     *   [N,  2 * N - 1]:     cores for socket1
+     *   [2 * N,  3 * N - 1]: cores for socket2
      */
     _ev_core_t _ev_core;
 

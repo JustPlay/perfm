@@ -40,19 +40,19 @@ void topology::build()
     _nr_socket      = 0;
     _nr_onln_socket = 0;
 
-    _cpu_present_list.reset();
+    _cpu_usable_list.reset();
     _cpu_online_list.reset();
-    _socket_present_list.reset();
+    _socket_usable_list.reset();
     _socket_online_list.reset();
 
     for (unsigned int s = 0; s < NR_MAX_SOCKET; ++s) {
         for (unsigned int c = 0; c < NR_MAX_CORE_PER_SKT; ++c) {
-            is_core_exist(s, c) = false;
-            nr_core_thrds(s, c) = 0;
+            core_usable(s, c) = false;
+            core_thread(s, c) = 0;
         }
     }
 
-    build_cpu_present_list();
+    build_cpu_usable_list();
 
     build_cpu_online_list();
 
@@ -67,7 +67,7 @@ void topology::build()
     processor_offline();
 }
 
-void topology::build_cpu_present_list()
+void topology::build_cpu_usable_list()
 {
     const std::string filp = cpu_directory + "present";
 
@@ -88,11 +88,11 @@ void topology::build_cpu_present_list()
                 int to = std::stoi(slice[i].substr(del + 1));
                 _nr_cpu += to - fr + 1;
                 for (int c = fr; c <= to; ++c) {
-                    _cpu_present_list.set(c);
+                    _cpu_usable_list.set(c);
                 }
             } else {
                 int c = std::stoi(slice[i]);
-                _cpu_present_list.set(c);
+                _cpu_usable_list.set(c);
                 ++_nr_cpu;
             }
         }
@@ -109,7 +109,7 @@ void topology::build_cpu_present_list()
         while ((dp = ::readdir(dirp)) != NULL) {
             if (std::isdigit(dp->d_name[3]) && std::strncmp(dp->d_name, "cpu", 3) == 0) {
                 int c = std::stoi(dp->d_name + 3);
-                _cpu_present_list.set(c);
+                _cpu_usable_list.set(c);
                 ++_nr_cpu;
             } 
         }
@@ -155,7 +155,7 @@ void topology::build_cpu_online_list()
     
     } else {
         for (unsigned int c = 0, n = 0; n < _nr_cpu; ++c) {
-            if (!cpu_present(c)) {
+            if (!cpu_usable(c)) {
                 continue;
             }
 
@@ -194,7 +194,7 @@ void topology::build_cpu_topology()
 
     // build the '<socket, core> => processors' map
     for (unsigned int c = 0, n = 0; n < _nr_cpu; ++c) {
-        if (!cpu_present(c)) {
+        if (!cpu_usable(c)) {
             continue;
         } 
 
@@ -227,34 +227,34 @@ void topology::build_cpu_topology()
         }
 
         // do some recording
-        if (!skt_present(socket)) {
+        if (!skt_usable(socket)) {
             ++_nr_socket;
-            _socket_present_list.set(socket);
+            _socket_usable_list.set(socket);
         }
 
-        if (!is_core_exist(socket, core_id)) {
-            is_core_exist(socket, core_id) = true;
+        if (!core_usable(socket, core_id)) {
+            core_usable(socket, core_id) = true;
             ++_nr_core;
         }
 
-        threads_array(socket, core_id)[nr_core_thrds(socket, core_id)++] = c;
+        list_thread(socket, core_id)[core_thread(socket, core_id)++] = c;
     }
 
     // build the 'processor => <core, socket>' map
     for (unsigned int s = 0, n = 0; n < _nr_socket && s < NR_MAX_SOCKET; ++s) {
-        if (!skt_present(s)) {
+        if (!skt_usable(s)) {
             continue;
         }
 
         ++n;
 
         for (unsigned int c = 0; c < NR_MAX_CORE_PER_SKT; ++c) {
-            if (!is_core_exist(s, c)) {
+            if (!core_usable(s, c)) {
                 continue;
             }
 
-            for (int p = 0; p < nr_core_thrds(s, c); ++p) {
-                _cpu[threads_array(s, c)[p]] = std::make_pair(c, s);
+            for (int p = 0; p < core_thread(s, c); ++p) {
+                _cpu[list_thread(s, c)[p]] = std::make_pair(c, s);
             }
         }
     }
@@ -272,19 +272,19 @@ void topology::build_cpu_topology()
             ++_nr_onln_socket;
         }
 
-        if (flag.find(std::make_pair(processor_core(c), processor_socket(c))) == flag.end()) {
+        if (flag.find(std::make_pair(processor_coreid(c), processor_socket(c))) == flag.end()) {
             ++_nr_onln_core;
-            flag.insert(std::make_pair(processor_core(c), processor_socket(c)));
+            flag.insert(std::make_pair(processor_coreid(c), processor_socket(c)));
         }
     }
 }
 
 void topology::processor_online() const 
 {   //
-    // put all presented processor online
+    // put all presented/usable processor online
     //
     for (unsigned int c = 0, n = 0; n < _nr_cpu; ++c) {
-        if (!cpu_present(c)) {
+        if (!cpu_usable(c)) {
             continue; 
         }
 
@@ -301,7 +301,7 @@ void topology::processor_offline() const
     // offline processors not in the _cpu_online_list
     //
     for (unsigned int c = 0, n = 0; n < _nr_cpu; ++c) {
-        if (!cpu_present(c)) {
+        if (!cpu_usable(c)) {
             continue;
         }
 
@@ -376,16 +376,16 @@ void topology::print(const char *filp)
     int column_width[_nr_cpu];
 
     for (unsigned int c = 0, n = 0; n < _nr_cpu; ++c) {
-        if (!cpu_present(c)) {
+        if (!cpu_usable(c)) {
             continue;
         }
 
-        column_width[n++] = compute_width(c, processor_core(c), processor_socket(c));
+        column_width[n++] = compute_width(c, processor_coreid(c), processor_socket(c));
     }
 
-    fprintf(fp, "Processor presented: %2zu - ", _nr_cpu);
+    fprintf(fp, "Processor usable: %2zu - ", _nr_cpu);
     for (unsigned int c = 0, n = 0; n < _nr_cpu; ++c) {
-        if (!cpu_present(c)) {
+        if (!cpu_usable(c)) {
             continue;
         }
         ++n;
@@ -404,9 +404,9 @@ void topology::print(const char *filp)
     }
     fprintf(fp, "\n");
 
-    fprintf(fp, "Processor online   : %2zu - ", _nr_onln_cpu);
+    fprintf(fp, "Processor online: %2zu - ", _nr_onln_cpu);
     for (unsigned int c = 0, n = 0; n < _nr_cpu; ++c) {
-        if (!cpu_present(c)) {
+        if (!cpu_usable(c)) {
             continue;
         }
         ++n;
@@ -443,7 +443,7 @@ void topology::print(const char *filp)
     // processor list
     fprintf(fp, "Processor: ");
     for (unsigned int c = 0, n = 0; n < _nr_cpu; ++c) {
-        if (!cpu_present(c)) {
+        if (!cpu_usable(c)) {
             continue;
         }
         ++n;
@@ -465,20 +465,20 @@ void topology::print(const char *filp)
     // physical core list
     fprintf(fp, "Core id:   ");
     for (unsigned int c = 0, n = 0; n < _nr_cpu; ++c) {
-        if (!cpu_present(c)) {
+        if (!cpu_usable(c)) {
             continue;
         }
         ++n;
 
         switch (column_width[n]) {
         case 2:
-            fprintf(fp, "%2d", processor_core(c));
+            fprintf(fp, "%2d", processor_coreid(c));
             break;
         case 3:
-            fprintf(fp, "%3d", processor_core(c));
+            fprintf(fp, "%3d", processor_coreid(c));
             break;
         case 4:
-            fprintf(fp, "%4d", processor_core(c));
+            fprintf(fp, "%4d", processor_coreid(c));
             break;
         }
     }
@@ -487,7 +487,7 @@ void topology::print(const char *filp)
     // socket list
     fprintf(fp, "Socket id: ");
     for (unsigned int c = 0, n = 0; n < _nr_cpu; ++c) {
-        if (!cpu_present(c)) {
+        if (!cpu_usable(c)) {
             continue;
         }
         ++n;
@@ -510,12 +510,12 @@ void topology::print(const char *filp)
     fprintf(fp, "------------------------------------------\n");
     fprintf(fp, "[Processor] - [Core] - [Socket] - [Online]\n");
     for (unsigned int c = 0, n = 0; n < _nr_cpu; ++c) {
-        if (!cpu_present(c)) {
+        if (!cpu_usable(c)) {
             continue;
         }
         ++n;
 
-        fprintf(fp, "%7d       %4d     %5d       %4d\n", c, processor_core(c), processor_socket(c), cpu_online(c) ? 1 : 0);
+        fprintf(fp, "%7d       %4d     %5d       %4d\n", c, processor_coreid(c), processor_socket(c), cpu_online(c) ? 1 : 0);
     }
     fprintf(fp, "------------------------------------------\n");
 

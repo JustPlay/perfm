@@ -206,6 +206,35 @@ analyzer::ptr_t analyzer::alloc()
     return ptr_t(p);
 }
 
+void analyzer::analyze()
+{
+    // 
+    // build cpu topology
+    //
+    this->topology();
+
+    //
+    // parse event & metric list
+    //
+    this->_metric = metric::alloc();
+    if (!this->_metric) {
+        perfm_fatal("failed to alloc the metric object\n");
+    }
+
+    this->_metric->events_parse(/* TODO */);
+    this->_metric->metric_parse(/* TODO */);
+
+    //
+    // gather the collected PMU events
+    //
+    this->collect();
+
+    // 
+    // compute & print
+    //
+    this->compute();
+}
+
 void analyzer::topology(const std::string &filp)
 {
     for (size_t i = 0; i < NR_MAX_PROCESSOR; ++i) {
@@ -444,7 +473,7 @@ void analyzer::average(const std::unordered_map<std::string, size_t> &ev_count)
             }
             ++n;
 
-            (*(it->second)[c] /= cntr;
+            (*(it->second))[c] /= cntr;
         }
     }
 
@@ -458,21 +487,13 @@ void analyzer::average(const std::unordered_map<std::string, size_t> &ev_count)
             }
             ++n;
 
-            (*(it->second)[c] /= cntr;
+            (*(it->second))[c] /= cntr;
         }
     }
 }
 
 void analyzer::compute()
 {
-    /* FIXME */
-    this->_metric = metric::alloc();
-    if (!this->_metric) {
-        perfm_fatal("failed to alloc the metric object\n");
-    }
-
-    /* TODO */
-
     if (perfm_options.thread_view) {
         perfm_fatal("TODO\n"); 
     }
@@ -482,12 +503,97 @@ void analyzer::compute()
     }
 
     if (perfm_options.socket_view) {
-        for (size_t i = 0; i < _nr_thread
+        socket_compute();
     }
 
     if (perfm_options.system_view) {
-        perfm_fatal("TODO\n"); 
+        system_compute();
     }
+}
+
+void analyzer::thrd_compute()
+{
+
+    /* TODO */
+}
+
+void analyzer::core_compute()
+{
+
+}
+
+void analyzer::socket_compute()
+{
+    // aggregate PMU data related to this socket
+    for (auto it = _ev_thread.begin(); it != _ev_thread.end(); ++it) {
+        _ev_socket_elem_t *p = nullptr;
+        try {
+            p = new _ev_socket_elem_t;
+        } catch (const std::bad_alloc &) {
+            perfm_fatal("failed to alloc memory\n"); 
+        }
+
+        for (unsigned int s = 0; s < NR_MAX_SOCKET; ++s) {
+            p[s] = 0;
+        }
+
+        for (unsigned int c = 0, n = 0; n < _nr_thread; ++c) {
+            if (processor_status(c) == -1) {
+                continue;
+            }
+            ++n;
+            
+            p[processor_socket(c)] += (*(it->second))[c];
+        }
+
+        _ev_socket.insert({it->first, std::shared_ptr<_ev_socket_elem_t>(p)});
+    }
+
+    // parse the aggregated data
+    /* TODO */
+}
+
+void analyzer::system_compute()
+{
+    if (perfm_options.socket_view) {
+        for (auto it = _ev_socket.begin(); it != _ev_socket.end(); ++it) {
+            _ev_system_elem_t *p = nullptr;
+            try {
+                p = new _ev_system_elem_t { 0 };
+            } catch (const std::bad_alloc &) {
+                perfm_fatal("failed to alloc memory\n"); 
+            }
+
+            for (unsigned int s = 0; s < _nr_socket; ++s) {
+                p[0] += (*(it->second))[s];
+            }
+
+            _ev_system.insert({it->first, std::shared_ptr<_ev_system_elem_t>(p)});
+        }
+    
+    } else {
+        for (auto it = _ev_thread.begin(); it != _ev_thread.end(); ++it) {
+            _ev_system_elem_t *p = nullptr;
+            try {
+                p = new _ev_system_elem_t { 0 };
+            } catch (const std::bad_alloc &) {
+                perfm_fatal("failed to alloc memory\n"); 
+            }
+
+            for (unsigned int c = 0, n = 0; n < _nr_thread; ++c) {
+                if (processor_status(c) == -1) {
+                    continue;
+                }
+                ++n;
+                
+                p[0] += (*(it->second))[c];
+            }
+
+            _ev_system.insert({it->first, std::shared_ptr<_ev_system_elem_t>(p)});
+        }
+    }
+
+    /* TODO */
 }
 
 void analyzer::metric_eval()

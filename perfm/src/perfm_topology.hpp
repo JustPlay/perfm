@@ -60,7 +60,7 @@ public:
     void print(const char *filp = NULL);
 
 private:
-    void build_cpu_present_list();
+    void build_cpu_usable_list();
     void build_cpu_online_list();
     void build_cpu_topology();
 
@@ -79,28 +79,28 @@ private:
     size_t _nr_onln_core;   /* number of online cores */
     size_t _nr_onln_socket; /* number of online sockets */
 
-    std::bitset<NR_MAX_PROCESSOR> _cpu_present_list;
+    std::bitset<NR_MAX_PROCESSOR> _cpu_usable_list;
     std::bitset<NR_MAX_PROCESSOR> _cpu_online_list;
-    #define cpu_present(cpu) _cpu_present_list.test((cpu)) /* is (logical) processor @cpu presented ? */
-    #define cpu_online(cpu)  _cpu_online_list.test((cpu))  /* is (logical) processor @cpu online ? */
+    #define cpu_usable(cpu)  _cpu_usable_list.test((cpu))  /* is (logical) @cpu usable ? */
+    #define cpu_online(cpu)  _cpu_online_list.test((cpu))  /* is (logical) @cpu online ? */
 
-    std::bitset<NR_MAX_SOCKET> _socket_present_list;
+    std::bitset<NR_MAX_SOCKET> _socket_usable_list;
     std::bitset<NR_MAX_SOCKET> _socket_online_list;
-    #define skt_present(skt) _socket_present_list.test((skt)) /* is socket presented ? */
-    #define skt_online(skt)  _socket_online_list.test((skt))  /* is socket online ? */
+    #define skt_usable(skt)  _socket_usable_list.test((skt))  /* is socket (physical package) usable ? */
+    #define skt_online(skt)  _socket_online_list.test((skt))  /* is socket (physical package) online ? */
 
     using _core2thrds_map_t = std::array<int, NR_MAX_SMT_PER_CORE>;  
 
     std::tuple<bool, int, _core2thrds_map_t> _topology[NR_MAX_SOCKET][NR_MAX_CORE_PER_SKT];           
-    #define is_core_exist(skt, core) std::get<0>(_topology[(skt)][(core)]) /* core (physical) exist? core's id may be discontinuous */
-    #define nr_core_thrds(skt, core) std::get<1>(_topology[(skt)][(core)]) /* how many threads (logical) share this core */
-    #define threads_array(skt, core) std::get<2>(_topology[(skt)][(core)]) /* processor/cpu (logical) list on this core (physical) */
+    #define core_usable(skt, core)  std::get<0>(_topology[(skt)][(core)]) /* physical core exist? core's id may be discontinuous */
+    #define core_thread(skt, core)  std::get<1>(_topology[(skt)][(core)]) /* how many logical threads share this core */
+    #define list_thread(skt, core)  std::get<2>(_topology[(skt)][(core)]) /* logical processor/cpu list on this physical core */
 
     std::array<std::pair<int, int>, NR_MAX_PROCESSOR> _cpu; /* subscript is (logical) processor's id
                                                              * array type is: <core, socket>
                                                              */
-    #define processor_core(c)   _cpu[(c)].first
-    #define processor_socket(c) _cpu[(c)].second
+    #define processor_coreid(c)  _cpu[(c)].first
+    #define processor_socket(c)  _cpu[(c)].second
 };
 
 } /* namespace perfm */
