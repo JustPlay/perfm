@@ -189,7 +189,7 @@ bool save_file(const char *filp, void *buf, size_t sz);
 void *read_file(const char *filp, size_t *sz = NULL);
 
 /**
- * num_cpus_total - return the number of processors installed on this system
+ * num_cpu_usable - return the number of processors installed on this system
  *
  * Return:
  *     the number of processors installed on this system
@@ -199,7 +199,7 @@ void *read_file(const char *filp, size_t *sz = NULL);
  *     
  *     in older vesion glibc or linux kernel, the _SC_NPROCESSORS_CONF *do* change when do cpu hotplug
  */
-size_t num_cpus_total();
+size_t num_cpu_usable();
 
 /**
  * cpu_frequency - get frequency for all online processors

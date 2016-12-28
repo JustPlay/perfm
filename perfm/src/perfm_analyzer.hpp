@@ -159,7 +159,7 @@ private:
     /* event data list, physical core level, only for core PMU events
      * 
      * key: event's name string
-     * val: an array, the sub-script is *maped* to core's id
+     * val: an array, the sub-script is *maped* to socket's id + core's id
      * 
      * if N = NR_MAX_CORE_PER_SKT, then: 
      *   [0, N - 1]:          cores for socket0 (include non-exist cores)
@@ -168,12 +168,18 @@ private:
      */
     _ev_core_t _ev_core;
 
+    std::bitset<NR_MAX_CORE> _core_usable_list;
+    #define core_script(socket, coreid)  ((socket) * NR_MAX_CORE_PER_SKT + (coreid))
+    #define core_usable(socket, coreid)  _core_usable_list.test(core_script(socket, coreid))
+
     /* event name list, socket level, for all events (core & uncore PMU events)
      *
      * key: event's name string
      * val: an array, the sub-script is the socket's id
      */
     _ev_socket_t _ev_socket;
+
+    std::bitset<NR_MAX_SOCKET> _skt_usable_list;
 
     /* event name list, system level, for all events (core & uncore PMU events)
      *
@@ -190,7 +196,7 @@ private:
     /* subscript is (logical) processor's id
      * array type is: <status, coreid, socket>
      *
-     * status - -1: not presented, 0: not online, 1: online
+     * status - -1: not presented (not usable), 0: not online, 1: online
      * coreid - physical core id
      * socket - socket id (physical package id)
      */

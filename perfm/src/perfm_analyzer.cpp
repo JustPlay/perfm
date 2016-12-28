@@ -246,6 +246,8 @@ void analyzer::topology(const std::string &filp)
     _nr_socket = 0;
     _nr_system = 1;
 
+    _core_usable_list.reset();
+
     std::fstream fp;
 
     if (filp.empty()) {
@@ -277,9 +279,6 @@ void analyzer::topology(const std::string &filp)
         ++_nr_thread;
     }
 
-    std::set<int> skt;
-    std::set<std::pair<int, int>> core;
-
     for (unsigned int c = 0, n = 0; n < _nr_thread; ++c) {
         if (processor_stauts(c) == -1) {
             continue;
@@ -289,14 +288,14 @@ void analyzer::topology(const std::string &filp)
         int coreid = processor_coreid(c);
         int socket = processor_socket(c);
 
-        if (!skt.count(socket)) {
+        if (!_skt_usable_list.test(socket)) {
             ++_nr_socket;
-            skt.insert(socket);
+            _skt_usable_list.set(socket);
         }
 
-        if (!core.count({coreid, socket})) {
+        if (!_core_usable_list.test(core_script(socket, coreid))) {
             ++_nr_core;
-            core.insert({coreid, socket});
+            _core_usable_list.set(core_script(socket, coreid));
         }
     }
 }
@@ -495,11 +494,11 @@ void analyzer::average(const std::unordered_map<std::string, size_t> &ev_count)
 void analyzer::compute()
 {
     if (perfm_options.thread_view) {
-        perfm_fatal("TODO\n"); 
+        thrd_compute();
     }
 
     if (perfm_options.core_view) {
-        perfm_fatal("TODO\n"); 
+        core_compute();
     }
 
     if (perfm_options.socket_view) {
@@ -519,7 +518,32 @@ void analyzer::thrd_compute()
 
 void analyzer::core_compute()
 {
+    for (auto it = _ev_thread.begin(); it != _ev_thread.end(); ++it) {
+        _ev_core_elem_t *p = nullptr;
+        try {
+            p = new _ev_core_elem_t;
+        } catch (const std::bad_alloc &) {
+            perfm_fatal("failed to alloc memory\n"); 
+        }
 
+        for (unsigned int c = 0; c < NR_MAX_CORE; ++c) {
+            p[c] = 0;
+        }
+
+        for (unsigned int c = 0, n = 0; n < _nr_thread; ++c) {
+            if (processor_status(c) == -1) {
+                continue;
+            }
+            ++n;
+
+            int socket = processor_socket(c);
+            int coreid = processor_coreid(c);
+
+            p[core_script(socket, coreid)] += (*(it->second))[c];
+        }
+    }
+
+    /* TODO */
 }
 
 void analyzer::socket_compute()

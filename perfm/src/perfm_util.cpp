@@ -241,7 +241,7 @@ void *read_file(const char *filp, size_t *sz)
 
     struct stat sb;
     if (fstat(fd, &sb) != 0) {
-        perfm_warn("failed to stat file %s, %s\n", filp, strerror_r(errno, NULL, 0));
+        perfm_warn("failed to stat %s, %s\n", filp, strerror_r(errno, NULL, 0));
         close(fd);
         return NULL;
     }
@@ -287,7 +287,7 @@ int is_cpu(const struct dirent *dirp)
     return std::isdigit(dirp->d_name[3]) && std::strncmp(dirp->d_name, "cpu", 3) == 0;
 }
 
-size_t num_cpus_total()
+size_t num_cpu_usable()
 {
     struct dirent **namelist; 
     int nr_dirent = 0;

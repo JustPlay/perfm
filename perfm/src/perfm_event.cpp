@@ -75,7 +75,8 @@ int perf_event::close()
     return ret;
 }
 
-struct perf_event_attr *perf_event::attribute() const {
+struct perf_event_attr *perf_event::attribute() const
+{
     perf_event_attr *hw_copy = nullptr;
     try {
         hw_copy = new perf_event_attr;

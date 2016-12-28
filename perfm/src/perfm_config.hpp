@@ -26,6 +26,8 @@ constexpr size_t NR_MAX_SOCKET       = 8;
 constexpr size_t NR_MAX_SMT_PER_CORE = NR_MAX_PROCESSOR / NR_MAX_CORE;
 constexpr size_t NR_MAX_CORE_PER_SKT = NR_MAX_CORE / NR_MAX_SOCKET;
 
+constexpr size_t NR_BIT_PER_LONG     = sizeof(unsigned long) << 3;
+
 } /* namespace perfm */
 
 #endif /* __PERFM_CONFIG_HPP_ */

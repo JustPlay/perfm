@@ -9,6 +9,7 @@
 #include <memory>
 #include <cstring>
 
+#include "perfm_config.hpp"
 #include "perfm_group.hpp"
 
 namespace perfm {
@@ -17,10 +18,6 @@ class monitor {
 
 public:
     using ptr_t = std::shared_ptr<monitor>;
-
-public:
-    static constexpr size_t nr_max_cpus = 512;
-    static constexpr size_t nr_bit_long = sizeof(unsigned long) << 3;
 
 public:
     static ptr_t alloc();
@@ -39,52 +36,82 @@ private:
         memset(_cpu_list, 0, sizeof(_cpu_list));
     }
 
-    void rr(double = 0.1);
+    /*
+     * rr - Round-robin scheduling
+     *
+     * @time_quantum: time slice (in seconds) for ...
+     *
+     * Description:
+     *     rr will ...
+     */
+    void rr(double time_quantum = 0.1);
     int loop();
 
     void parse_cpu_list(const std::string &list);
 
     static unsigned long lshift(unsigned long v) {
-        return 1UL << (nr_bit_long - 1 - (v % nr_bit_long));
+        return 1UL << (NR_BIT_PER_LONG - 1 - (v % NR_BIT_PER_LONG));
     }
 
-    bool is_set(int cpu) const {
-        if (cpu < 0 || static_cast<size_t>(cpu) >= nr_max_cpus) {
-            return false;
-        }
-
-        return !!(_cpu_list[cpu / nr_bit_long] & lshift(cpu));
-    }
-
-    void do_set(int cpu) {
-        if (cpu < 0 || static_cast<size_t>(cpu) >= nr_max_cpus) {
-            return;
-        }
-
-        _cpu_list[cpu / nr_bit_long] |= lshift(cpu);
-    }
-
-    void do_clr(int cpu) {
-        if (cpu < 0 || static_cast<size_t>(cpu) >= nr_max_cpus) {
-            return;
-        }
-
-        _cpu_list[cpu / nr_bit_long] &= ~lshift(cpu);
-    }
+    bool is_set(int pos) const;
+    void do_set(int pos);
+    void do_clr(int pos);
 
     void print(size_t group, uint64_t tsc_cycles) const;
 
 private:
-    using _cpu_data_t = std::vector<group::ptr_t>;
+    /* a set of "event group" associated to a processor or a socket
+     * 
+     * event groups on the same processor/socket will be scheduled under the "round-robin" scheduling policy
+     *
+     * events in the same group will be scheduled as a unit
+     */
+    using _pmu_data_t = std::vector<group::ptr_t>;
+
+    /* an event group, which will be scheduled as a unit
+     * 
+     * event group was represented by a vector which will contain a list of events
+     * belong to this group. the first event (with sub-script 0) in this group will be
+     * the group leader
+     */
     using _ev_group_t = std::vector<std::string>;
 
-    unsigned long _cpu_list[nr_max_cpus / nr_bit_long];
-    _cpu_data_t  *_cpu_data = nullptr;
+    unsigned long _cpu_list[NR_MAX_PROCESSOR / NR_BIT_PER_LONG];
+
+    _pmu_data_t  *_cpu_data = nullptr;
+    _pmu_data_t  *_skt_data = nullptr;
     _ev_group_t  *_ev_group = nullptr;
 
-    size_t _nr_select_cpu = 0;
-    size_t _nr_total_cpu  = 0;
+    size_t _nr_select_cpu = 0; /* # of selected CPUs */
+    size_t _nr_usable_cpu = 0; /* # of presented CPUS */
 };
+
+inline bool monitor::is_set(int pos) const
+{
+    if (pos < 0 || static_cast<size_t>(pos) >= NR_MAX_PROCESSOR) {
+        return false;
+    }
+
+    return !!(_cpu_list[pos / NR_BIT_PER_LONG] & lshift(pos));
+}
+
+inline void monitor::do_set(int pos)
+{
+    if (pos < 0 || static_cast<size_t>(pos) >= NR_MAX_PROCESSOR) {
+        return;
+    }
+
+    _cpu_list[pos / NR_BIT_PER_LONG] |= lshift(pos);
+}
+
+inline void monitor::do_clr(int pos)
+{
+    if (pos < 0 || static_cast<size_t>(pos) >= NR_MAX_PROCESSOR) {
+        return;
+    }
+
+    _cpu_list[pos / NR_BIT_PER_LONG] &= ~lshift(pos);
+}
 
 } /* namespace perfm */
 
