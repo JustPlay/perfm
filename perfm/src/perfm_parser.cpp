@@ -15,6 +15,10 @@
 #include <fstream>
 #include <tuple>
 
+// 
+// #include <> /* only search the std include path */ 
+// #include "" /* (1) cwd + (2) std */  
+// 
 #include "linux/perf_event.h"
 
 namespace {
@@ -52,13 +56,13 @@ parser::ptr_t parser::alloc()
     return ptr_t(p);
 }
 
-long parser::parse_event_source(const std::string &esrc)
+long parser::pmu_detect(const std::string &pmu)
 {
-    if (!_already_initialized) {
-        parse_event_source();
+    if (!_pmu_source_detected) {
+        pmu_detect();
     }
 
-    auto it = _event_source_list.find(esrc);
+    auto it = _event_source_list.find(pmu);
     if (it != _event_source_list.end()) {
         return it->second;
     } else {
@@ -68,7 +72,7 @@ long parser::parse_event_source(const std::string &esrc)
 
 #ifndef NOT_USE_GLOB
 
-void parser::parse_event_source()
+void parser::pmu_detect()
 {
     glob_t globuf;
 
@@ -111,14 +115,16 @@ void parser::parse_event_source()
         _event_source_list.insert({std::move(std::string(esrc)), type});
     }
 
-    _already_initialized = true;
-
     globfree(&globuf);
+
+    detect_encode_format();
+
+    _pmu_source_detected = true;
 }
 
 #else
 
-void parser::parse_event_source()
+void parser::pmu_detect()
 {
     _event_source_list.clear();
 
@@ -163,19 +169,21 @@ void parser::parse_event_source()
         perfm_warn("failed (may be partial successfully) to read dir %s\n", path.c_str());
     }
 
-    _already_initialized = true;
+    detect_encode_format();
+
+    _pmu_source_detected = true;
 }
 
 #endif
 
-void parser::parse_encoding_format()
+void parser::detect_encode_format()
 {
     for (auto it = _event_source_list.begin(); it != _event_source_list.end(); ++it) {
-        parse_encoding_format(it->first);
+        detect_encode_format(it->first);
     }
 }
 
-void parser::parse_encoding_format(const std::string &pmu)
+void parser::detect_encode_format(const std::string &pmu)
 {
     const std::string path = "/sys/bus/event_source/devices/" + pmu + "/format/";
 
@@ -300,6 +308,273 @@ void parser::print() const
     }
 }
 
+bool parser::parse_event(const std::string &raw, struct perf_event_attr *hw)
+{
+    // 1. raw event descriptor  --> perf style descriptor
+    // 2. perf style descriptor --> perf_event_attr
+
+    std::string p;
+
+    if (!parse_raw_event(raw, p) || !parse_perf_event(p, hw)) {
+        return false;
+    }
+
+    return true;
+}
+
+bool parser::parse_perf_event(const std::string &e, struct perf_event_attr *hw)
+{
+    // linux/tools/perf/Documentation/{perf-record.txt, perf-stat.txt}
+    //
+    // 1. a symbolic event name (use 'perf list' to list all events)
+    //
+    // 2. a raw PMU event (eventsel+umask) in the form of rNNN where NNN is hexadecimal event descriptor. 
+    //
+    // 3. a symbolically formed PMU event like 'pmu/param1=0x3,param2/' where param1', 'param2', etc are
+    //    defined as formats for the PMU in sys/bus/event_source/devices/<pmu>/format/*
+    //
+    // 4. a symbolically formed event like 'pmu/config=M,config1=N,config3=K/' where M, N, K are 
+    //    numbers (in decimal, hex, octal format)
+    // 
+    // FIXME:
+    //     for now, we only focus on 2 & 3
+
+    if (e.empty() || !hw) {
+        return false;
+    }
+
+    memset(hw, 0, sizeof(struct perf_event_attr));
+
+    // cache hit
+    auto it = _p2a_cache.find(e); 
+    if (it != _p2a_cache.end()) {
+        memmove(hw, it->second, sizeof(struct perf_event_attr));    
+        return true;
+    }
+
+    // cache miss
+    hw->size = sizeof(struct perf_event_attr);
+    hw->type = PERF_TYPE_RAW; /* defaults to PERF_TYPE_RAW */
+
+    int modifier_pos = 0;
+
+    // 
+    // std::string const s("Emplary");
+    // assert(s.size() == std::strlen(s.c_str()));
+    // assert(std::equal(s.begin(), s.end(), s.c_str()));
+    // assert(std::equal(s.c_str(), s.c_str() + s.size(), s.begin()));
+    // assert(0 == *(s.c_str() + s.size()));
+    //
+    if (std::sscanf(e.c_str(), "r%zx%n", &hw->config, &modifier_pos) == 1) {
+        if (modifier_pos > e.size()) {
+            perfm_warn("this should not happen\n");
+            return false;
+        }
+
+        if (modifier_pos == e.size()) {
+            return true;
+        }
+
+        if (e[modifier_pos] == ':') {
+            return parse_modifier(hw, e.substr(modifier_pos + 1));
+        }
+
+    } else {
+        // FIXME:
+        //    how to handle modifier ?
+        auto slice = str_split(e, "/", 2);
+        if (slice.size() != 2) {
+            perfm_warn("invalid descriptor %s\n", e.c_str());
+            return false;
+        }
+
+        if (!parse_encoding(hw, slice[0], slice[1])) {
+            return false;
+        }
+    }
+
+    auto hw_copy = static_cast<struct perf_event_attr *>(calloc(1, sizeof(struct perf_event_attr)));
+    if (hw_copy) {
+        memmove(hw_copy, hw, sizeof(struct perf_event_attr));
+        _p2a_cache.insert({e, hw_copy});
+    } else {
+        perfm_warn("memory allocate failed, will not do cache for perf event %s\n", e.c_str());
+    }
+
+    return true;
+}
+
+bool parser::parse_raw_event(const std::string &r, std::string &p)
+{
+    if (r.empty()) {
+        return false;
+    }
+
+    // cache hit
+    auto it = _r2p_cache.find(r);    
+    if (it != _r2p_cache.end()) {
+        p = it->second;
+        return true;
+    }
+
+    // cache miss
+    /* TODO */
+    // 1. find a event `descriptor`
+    // 2. use this `descriptor` to init @p
+
+    return true;
+}
+
+bool parser::parse_modifier(struct perf_event_attr *hw, const std::string &modifier) const
+{   // 
+    // FIXME: 
+    //     for now, we only support 'K', 'U', 'H', 'P', all the other will be ingored
+    //
+    if (modifier.empty()) {
+        return true;
+    } 
+
+    if (!hw) {
+        return false;
+    }
+
+    for (size_t i = 0; i < modifier.size(); ++i) {
+        switch (modifier[i]) {
+        case 'K': case 'k': // kernel, don't count user
+            hw->exclude_user = 1;
+            break;
+
+        case 'U': case 'u': // user, don't count kernel
+            hw->exclude_kernel = 1;
+            break;
+
+        case 'H': case 'h': // hypervisor, don't count in guest
+            hw->exclude_guest = 1;
+            break;
+
+        case 'P': case 'p': // skid constraint
+            hw->precise_ip++;
+            break;
+
+        default:
+            perfm_warn("ignored unknown modifier '%c'\n", modifier[i]);
+        }
+    }
+
+    return true;
+}
+
+std::string parser::pmu_name(int type) const
+{
+    for (auto it = _event_source_list.begin(); it != _event_source_list.end(); ++it) {
+        if (it->second == type) {
+            return it->first;
+        }
+    }
+
+    return "";
+}
+
+bool parser::parse_pmu_type(struct perf_event_attr *hw, const std::string &pmu) const
+{
+    if (pmu.empty() || !hw) {
+        return false;
+    }
+
+    if (!_pmu_source_detected) {
+        perfm_warn("you should run pmu_detect() first\n");
+        return false;
+    }
+
+    auto it = _event_source_list.find(pmu);
+    if (it != _event_source_list.end()) {
+        hw->type = it->second;
+        return true;
+    } else {
+        perfm_warn("invalid pmu %s\n", pmu.c_str());
+        return false;
+    }
+}
+
+#define LSB(v, x) ((v) & ((1UL << (x)) - 1)) // fetch the least significant bit
+
+bool parser::parse_encoding(struct perf_event_attr *hw, const std::string &pmu, const std::string &e) const
+{
+    if (!parse_pmu_type(hw, pmu) || e.empty() || !hw) {
+        return false;
+    }
+
+    std::string evn;
+
+    auto p = evn.find_first_of("\n"); 
+    if (p != std::string::npos) {
+        evn = e.substr(0, p);
+    } else {
+        evn = e;
+    }
+
+    if (evn.empty()) {
+        return false;
+    }
+
+    auto pmu_format = _event_format_list.find(pmu);
+    if (pmu_format == _event_format_list.end()) {
+        perfm_warn("invalid pmu %s\n", pmu.c_str()); 
+        return false;
+    }
+
+    std::string term;
+    uint64_t value, *config;
+    int l, r;
+
+    auto slice = str_split(evn, ",");
+
+    for (size_t i = 0; i < slice.size(); ++i) {
+        auto equal = slice[i].find("=");
+        if (equal != std::string::npos) {
+            term = slice[i].substr(0, equal); 
+            try {
+                // If the value of base is 0, the numeric base is auto-detected:
+                // - if the prefix is 0, the base is octal
+                // - if the prefix is 0x or 0X, the base is hexadecimal
+                // - otherwise the base is decimal
+                value = std::stoull(slice[i].substr(equal + 1), nullptr, 0); 
+            } catch (const std::exception &) {
+                perfm_warn("invalid descriptor %s(%s)\n", evn.c_str(), slice[i].c_str()); 
+            }
+        } else {
+            term  = slice[i];
+            value = 1;    
+        }
+
+        auto it = pmu_format->second.find(term);
+        if (it == pmu_format->second.end()) {
+            perfm_warn("invalid format field %s\n", term.c_str());
+            return false;
+        }
+
+        l = std::get<1>(it->second);
+        r = std::get<2>(it->second);
+
+        switch (std::get<0>(it->second)) {
+        case PERF_CONFIG_0:
+            config = &hw->config;
+            break;
+
+        case PERF_CONFIG_1:
+            config = &hw->config1;
+            break;
+
+        case PERF_CONFIG_2:
+            config = &hw->config2;
+            break;
+        }
+
+        *config |= (LSB(value, r - l + 1) << l);
+    }
+
+    return true;
+}
 
 } /* namespace perfm */
 
@@ -307,8 +582,7 @@ int main(int argc, char **argv)
 {
     perfm::parser::ptr_t parser = perfm::parser::alloc();
 
-    parser->parse_event_source();
-    parser->parse_encoding_format();
+    parser->pmu_detect();
 
     parser->print();
 }
