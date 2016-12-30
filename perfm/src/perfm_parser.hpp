@@ -114,7 +114,7 @@ public:
      * Description:
      *     
      */
-    void load_event_description(const std::string &filp);
+    void load_event_description(const std::string &filp, bool append = false);
 
     /**
      * parse_perf_event - resolve perf style event descriptions to attr
@@ -239,9 +239,9 @@ private:
         {"CPU_CLK_UNHALTED.THREAD_ANY",  "event=0x3c,any=1"}, 
     };
 
-    /* attribute name mapping between intel's event description file to perf's format 
+    /* attribute field mapping between intel's event description file to perf's format 
      * 
-     * key: attribute name in intel's event description file (https://download.01.org/perfmon)
+     * key: attribute field in intel's event description file (https://download.01.org/perfmon)
      * val: the corresponding attribute in perf's format directory (/sys/bus/event_source/devices/<pmu>/format)
      *
      * TODO:
