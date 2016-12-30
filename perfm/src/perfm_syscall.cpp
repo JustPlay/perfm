@@ -1,6 +1,7 @@
 #include <unistd.h>
 #include <sys/syscall.h>
-#include <linux/perf_event.h>
+
+#include "linux/perf_event.h"
 
 __attribute__((weak)) long perf_event_open(struct perf_event_attr *hw_event, pid_t pid, 
                                            int cpu, int group_fd, unsigned long flags)
@@ -12,6 +13,8 @@ __attribute__((weak)) long perf_event_open(struct perf_event_attr *hw_event, pid
 // https://gcc.gnu.org/onlinedocs/gcc/Function-Attributes.html
 //
 
+// 
+// http://man7.org/linux/man-pages/man2/perf_event_open.2.html
 //
 // perf_event related configuration files in /proc/sys/kernel/
 // - /proc/sys/kernel/perf_event_paranoid
@@ -26,18 +29,22 @@ __attribute__((weak)) long perf_event_open(struct perf_event_attr *hw_event, pid
 //
 // perf_event related configuration files in /sys/bus/event_source/devices/
 //   Since Linux 2.6.34, the kernel supports having multiple PMUs available for monitoring.
-//   Information on how to program these PMUs can be found under /sys/bus/event_source/devices/.
+//   Information on how to program these PMUs can be found under "/sys/bus/event_source/devices/".
 //   Each subdirectory corresponds to a different PMU.
 //
 // - /sys/bus/event_source/devices/*/type (since Linux 2.6.38)`
-//       This contains an integer that can be used in the type field of perf_event_attr to 
-//       indicate that you wish to use this PMU.
+//       This contains an integer that can be used in the `type` field of `perf_event_attr` to 
+//       indicate that you wish to use this PMU. For each type, there should exist an entry
+//       in `perf_type_id` defined in <linux/perf_event.h>
 //
 // - /sys/bus/event_source/devices/cpu/rdpmc (since Linux 3.4)
 //
 // - /sys/bus/event_source/devices/*/format/ (since Linux 3.4)
 //       This subdirectory contains information on the architecture-specific subfields
-//       available for programming the various config fields in the perf_event_attr struct.
+//       available for programming the various `config` fields in the `perf_event_attr` struct.
+//       This is only for non-generic PMUs.
+//       The content of each file is the name of the config field, followed by a colon, 
+//       followed by a series of integer bit ranges separated by commas.
 //
 // - /sys/bus/event_source/devices/*/events/ (since Linux 3.4)
 //       This subdirectory contains files with predefined events.
@@ -50,3 +57,4 @@ __attribute__((weak)) long perf_event_open(struct perf_event_attr *hw_event, pid
 //       representative CPU number for each socket (package) on the motherboard.
 //       This is needed when setting up uncore or northbridge events, as those PMUs
 //       present socket-wide events.
+//

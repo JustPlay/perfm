@@ -107,14 +107,14 @@ public:
     long pmu_detect(const std::string &pmu);
 
     /**
-     * load_events - load event description from json file
+     * load_event_description - load event description from json file
      *
      * @filp: json file to load from
      *
      * Description:
      *     
      */
-    void load_events(const std::string &filp);
+    void load_event_description(const std::string &filp);
 
     /**
      * parse_perf_event - resolve perf style event descriptions to attr
@@ -237,6 +237,24 @@ private:
         {"INST_RETIRED.ANY",             "event=0xc0"}, 
         {"CPU_CLK_UNHALTED.THREAD",      "event=0x3c"}, 
         {"CPU_CLK_UNHALTED.THREAD_ANY",  "event=0x3c,any=1"}, 
+    };
+
+    /* attribute name mapping between intel's event description file to perf's format 
+     * 
+     * key: attribute name in intel's event description file (https://download.01.org/perfmon)
+     * val: the corresponding attribute in perf's format directory (/sys/bus/event_source/devices/<pmu>/format)
+     *
+     * TODO:
+     *     we need more ...
+     */
+    const std::unordered_map<std::string, std::string> _fields_mapping = {
+        {"EventCode",         "event"},
+        {"UMask",             "umask"},  
+        {"SampleAfterValue",  "period"},  
+        {"CounterMask",       "cmask"},  
+        {"Invert",            "inv"},  
+        {"AnyThread",         "any"},  
+        {"EdgeDetect",        "edge"},  
     };
 };
 

@@ -506,7 +506,7 @@ bool parser::parse_encoding(struct perf_event_attr *hw, const std::string &pmu, 
 
     std::string evn;
 
-    auto p = evn.find_first_of("\n"); 
+    auto p = e.find_first_of("\n"); 
     if (p != std::string::npos) {
         evn = e.substr(0, p);
     } else {
@@ -574,6 +574,15 @@ bool parser::parse_encoding(struct perf_event_attr *hw, const std::string &pmu, 
     }
 
     return true;
+}
+
+void load_event_description(const std::string &json_file)
+{
+    if (json_file.empty()) {
+        perfm_fatal("file path empty\n");
+    }
+
+    // TODO
 }
 
 } /* namespace perfm */
