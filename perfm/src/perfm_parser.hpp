@@ -61,10 +61,10 @@
 
 namespace perfm {
 
-class descriptor {
+class einfo {
 
 public:
-    using ptr_t = std::shared_ptr<descriptor>;
+    using ptr_t = std::shared_ptr<einfo>;
 
 public:
     static ptr_t alloc();

@@ -1,9 +1,13 @@
 /**
- * perfm_event.hpp - interface for a *single* event/perf_event
+ * perfm_event.hpp - interface for a _single_ event/perf_event
  *
  */
 #ifndef __PERFM_EVENT_HPP__
 #define __PERFM_EVENT_HPP__
+
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
 
 #include <cstdlib>
 #include <cstring>
@@ -18,21 +22,7 @@
 #include <sys/ioctl.h>
 #include <unistd.h>
 
-#include <perfmon/perf_event.h>
-#include <perfmon/pfmlib_perf_event.h>
-
-// -----------------------------------------------------------------------------------------------------
-// | EventName(Intel)           | Cntr Type | EventName(intel)          | EventName(libpfm4)           |
-// |---------------------------------------------------------------------------------------------------|
-// | INST_RETIRED.ANY           | fixed (1) | INST_RETIRED.ANY_P        | INST_RETIRED:ANY_P           |
-// |---------------------------------------------------------------------------------------------------|
-// | CPU_CLK_UNHALTED.THREAD    | fixed (2) | CPU_CLK_UNHALTED.THREAD_P | CPU_CLK_UNHALTED:THREAD_P    |
-// |---------------------------------------------------------------------------------------------------|
-// | CPU_CLK_UNHALTED.REF_TSC   | fixed (3) | CPU_CLK_UNHALTED.REF_XCLK | CPU_CLK_UNHALTED:REF_XCLK    |
-// |---------------------------------------------------------------------------------------------------|
-// | 
-// -----------------------------------------------------------------------------------------------------
-
+#include "linux/perf_event.h"
 
 /*
  * https://perf.wiki.kernel.org/index.php/Tutorial
@@ -42,23 +32,24 @@
  *    give each event a chance to access the monitoring hardware.
  *    
  *    Multiplexing only applies to PMU events. With multiplexing, an event is 
- *    not measured all the time. At the end of the run, the tool scales the 
+ *    not measured all the time. At the end of the run, we need scale the 
  *    count based on total time enabled vs time running. The actual formula is:
  *
  *    - final_count = raw_count * time_enabled / time_running
  *
- *    - TIME_RUNNING <= TIME_ENABLED
- *    - TIME_RUNNING != 0 
- *    - RAW_COUNT * TIME_ENABLED / TIME_RUNNING
+ *    - time_running <= time_enabled
+ *    - time_running != 0 
+ *    - raw_count * time_enabled / time_running
  *
  *    This provides an __estimate__ of what the count would have been, had the
- *    event been measured during the entire run.
+ *    event been measured during the entire run. So, we should avoid multiplexing
+ *    is possible
  *
  *    To avoid scaling (in the presence of only one active perf_event user), one
  *    can try and reduce the number of events.
  *
  *    PMU's generic counters can measure any events. 
- *          fixed counters can only measure one event. 
+ *          fixed counters can only measure one event (not programable). 
  *          some counters may be reserved for special purposes, such as a watchdog timer.
  *
  * 2. The read format *without* PERF_FORMAT_GROUP:
@@ -79,93 +70,100 @@
  *        } cntr[nr];
  *    } // PERF_FORMAT_GROUP
  *
- * NOTE: perfm always enable PERF_FORMAT_TOTAL_TIME_ENABLED, PERF_FORMAT_TOTAL_TIME_RUNNING 
- *       perf_event_open(2)
+ * NOTE: perfm always enable PERF_FORMAT_TOTAL_TIME_ENABLED & PERF_FORMAT_TOTAL_TIME_RUNNING 
+ *       for more info please refer to perf_event_open(2)
  */
 
-#ifdef  PEV_RDFMT_TIMEING
-#undef  PEV_RDFMT_TIMEING
+#ifdef  RDFMT_TIMEING
+#undef  RDFMT_TIMEING
 #endif
-#define PEV_RDFMT_TIMEING (PERF_FORMAT_TOTAL_TIME_ENABLED | PERF_FORMAT_TOTAL_TIME_RUNNING)
+#define RDFMT_TIMEING (PERF_FORMAT_TOTAL_TIME_ENABLED | PERF_FORMAT_TOTAL_TIME_RUNNING)
 
-#ifdef  PEV_RDFMT_EVGROUP
-#undef  PEV_RDFMT_EVGROUP
+#ifdef  RDFMT_EVGROUP
+#undef  RDFMT_EVGROUP
 #endif
-#define PEV_RDFMT_EVGROUP (PERF_FORMAT_GROUP)
+#define RDFMT_EVGROUP (PERF_FORMAT_GROUP)
 
 namespace perfm {
 
-class perf_event {
+/**
+ * descriptor - the descriptor for a single perf_event
+ *
+ * Description:
+ *     this class contain arguments & the returned fd for perf_event_open(2), and someother things
+ *
+ * TODO:
+ *     we need more ...
+ */
+class descriptor {
 
 public:
-    using ptr_t = std::shared_ptr<perf_event>;
+    using ptr_t = std::shared_ptr<descriptor>;
 
 public:
     static ptr_t alloc();
     
-    virtual ~perf_event() { }
+    virtual ~descriptor() { }
 
-    int open();
-    int close();
+    bool open();
+    bool close();
 
-    int perf_fd() const {
-        return this->_fd;
+    int fd() const {
+        return _fd;
     }
 
     int cpu() const {
-        return this->_cpu;
+        return _cpu;
     }
 
     pid_t process() const {
-        return this->_pid;
+        return _pid;
     }
 
-    unsigned long mask() const {
-        return this->_flags;
+    unsigned long flag() const {
+        return _flags;
     }
 
     int leader() const {
-        return this->_group_fd;
+        return _group_fd;
     }
 
     /**
-     * attribute - get the attribute struct for this perf_event instance
+     * attr - get the attribute struct for this perf_event instance
      *
      * Return:
-     *     return a pointer which point to the copy of @this->_hw
+     *     return a pointer which point to the copy of @_hw
      *
      * Description:
      *     the returned pointer must be freed by the caller
      */
-    struct perf_event_attr *attribute() const;
+    struct perf_event_attr *attr() const;
 
-    void perf_fd(int fd) {
-        this->_fd = fd;
+    void fd(int fd) {
+        _fd = fd;
     }
 
     void cpu(int cpu) {
-        this->_cpu = cpu;
+        _cpu = cpu;
     } 
 
     void process(pid_t pid) {
-        this->_pid = pid;
+        _pid = pid;
     }
 
-    void mask(unsigned long flags) {
-        this->_flags = flags;
+    void flag(unsigned long flags) {
+        _flags = flags;
     }
 
     void leader(int group_leader) {
-        this->_group_fd = group_leader;
+        _group_fd = group_leader;
     } 
 
-    void attribute(const struct perf_event_attr *hw) {
-        memmove(&this->_hw, hw, sizeof(this->_hw));
-    }
+    void attr(const struct perf_event_attr *hw);
 
 protected:
-    perf_event() {
-        memset(&this->_hw, 0, sizeof(this->_hw));
+    descriptor () {
+        memset(&_hw, 0, sizeof(_hw));
     }
 
 private:
@@ -179,20 +177,27 @@ private:
     unsigned long _flags = 0UL;
 
     struct perf_event_attr _hw;
+
+    /* FIXME: some otherthings unused for now */
+    struct perf_event_mmap_page *_page = nullptr;
 };
 
-class event : public perf_event {
+/**
+ * event - TODO
+ *
+ */
+class event : public descriptor {
 
 public:
-    using ptr_t = std::shared_ptr<event>;
-    using pmu_cntr_t = std::tuple<uint64_t, uint64_t, uint64_t>; /* 0: raw PMU count, 1: time_enabled, 2: time_running */
+    using ptr_t  = std::shared_ptr<event>;
+    using cntr_t = std::tuple<uint64_t, uint64_t, uint64_t>; /* 0: raw pmu count, 1: time_enabled, 2: time_running */
 
 public:
     static ptr_t alloc();
 
     virtual ~event() { }
 
-    using perf_event::open;
+    using descriptor::open;
 
     /** 
      * open - encode & open the event for monitoring
@@ -220,20 +225,20 @@ public:
     uint64_t delta() const;
     double   ratio() const;
 
-    int start() {
-        return ::ioctl(this->perf_fd(), PERF_EVENT_IOC_ENABLE, 0);
+    bool start() {
+        return ::ioctl(this->fd(), PERF_EVENT_IOC_ENABLE, 0);
     }
 
-    int stop() {
-        return ::ioctl(this->perf_fd(), PERF_EVENT_IOC_DISABLE, 0);
+    bool stop() {
+        return ::ioctl(this->fd(), PERF_EVENT_IOC_DISABLE, 0);
     }
 
-    int reset() {
-        return ::ioctl(this->perf_fd(), PERF_EVENT_IOC_RESET, 0);
+    bool reset() {
+        return ::ioctl(this->fd(), PERF_EVENT_IOC_RESET, 0);
     }
 
-    int refresh() {
-        return ::ioctl(this->perf_fd(), PERF_EVENT_IOC_REFRESH, 0);
+    bool refresh() {
+        return ::ioctl(this->fd(), PERF_EVENT_IOC_REFRESH, 0);
     }
 
     void print() const;
@@ -247,7 +252,7 @@ public:
         return this->_plm;
     }
 
-    pmu_cntr_t pmu_cntr() const;
+    cntr_t pmu_cntr() const;
 
     void name(const std::string &nam) {
         this->_nam = nam;
@@ -257,7 +262,7 @@ public:
         this->_plm = plm;
     }
 
-    void pmu_cntr(const pmu_cntr_t &val) {
+    void pmu_cntr(const cntr_t &val) {
        pmu_cntr(std::get<0>(val), std::get<1>(val), std::get<2>(val));
     }
 
@@ -265,17 +270,61 @@ public:
 
 private:
     uint64_t _pmu_vals[4] = { 0, 1, 1, 0 };   /* initialized with 0, 1, 1, 0 just to 
-                                               * avoid the warning when do first read
+                                               * avoid the warning when do first read/scale
                                                */
 
-    #define raw_pmu_cntr() this->_pmu_vals[0] /* 0: raw PMU value */
-    #define time_enabled() this->_pmu_vals[1] /* 1: time_enabled  */
-    #define time_running() this->_pmu_vals[2] /* 2: time_running  */
-    #define prev_pmu_val() this->_pmu_vals[3] /* 3: previous _scaled_ pmu value */
+    #define _m_raw_pmu() this->_pmu_vals[0]  /* 0: raw pmu value */
+    #define _m_enabled() this->_pmu_vals[1]  /* 1: time_enabled  */
+    #define _m_running() this->_pmu_vals[2]  /* 2: time_running  */
+    #define _m_initial() this->_pmu_vals[3]  /* 3: previous or initial _scaled_ pmu value */
 
     std::string _nam;   /* event string name, used by libpfm4 */
     unsigned long _plm; /* privilege level mask, used by libpfm4 */
 };
+
+inline bool event::start()
+{
+    int ret = ::ioctl(this->fd(), PERF_EVENT_IOC_ENABLE, 0);
+#ifndef NDEBUG
+    if (ret == -1) {
+        perfm_warn("failed to start perf_event %d\n", this->fd());
+    }
+#endif
+    return !!ret;
+}
+
+inline bool event::stop()
+{
+    int ret = ::ioctl(this->fd(), PERF_EVENT_IOC_DISABLE, 0);
+#ifndef NDEBUG
+    if (ret == -1) {
+        perfm_warn("failed to stop perf_event %d\n", this->fd());
+    }
+#endif
+    return !!ret;
+}
+
+inline bool event::reset()
+{
+    int ret = ::ioctl(this->fd(), PERF_EVENT_IOC_RESET, 0);
+#ifndef NDEBUG
+    if (ret == -1) {
+        perfm_warn("failed to reset perf_event %d\n", this->fd());
+    }
+#endif
+    return !!ret;
+}
+
+inline bool event::refresh()
+{
+    int ret = ::ioctl(this->fd(), PERF_EVENT_IOC_REFRESH, 0);
+#ifndef NDEBUG
+    if (ret == -1) {
+        perfm_warn("failed to refresh perf_event %d\n", this->fd());
+    }
+#endif
+    return !!ret;
+}
 
 } /* namespace perfm */
 
