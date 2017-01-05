@@ -66,7 +66,7 @@ private:
      *
      * events in the same group will be scheduled as a unit
      */
-    using _pmu_data_t = std::vector<group::ptr_t>;
+    using _pmu_dat_t = std::vector<group::ptr_t>;
 
     /* an event group, which will be scheduled as a unit
      * 
@@ -74,13 +74,13 @@ private:
      * belong to this group. the first event (with sub-script 0) in this group will be
      * the group leader
      */
-    using _ev_group_t = std::vector<std::string>;
+    using _e_group_t = std::vector<std::string>;
 
     unsigned long _cpu_list[NR_MAX_PROCESSOR / NR_BIT_PER_LONG];
 
-    _pmu_data_t  *_cpu_data = nullptr;
-    _pmu_data_t  *_skt_data = nullptr;
-    _ev_group_t  *_ev_group = nullptr;
+    _pmu_dat_t *_cpu_data = nullptr;
+    _pmu_dat_t *_skt_data = nullptr;
+    _e_group_t *_ev_group = nullptr;
 
     size_t _nr_select_cpu = 0; /* # of selected CPUs */
     size_t _nr_usable_cpu = 0; /* # of presented CPUS */

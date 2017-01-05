@@ -49,10 +49,9 @@ private:
      * key: event's name string
      * val: event's type (e.g. core PMU, uncore PMU)
      */
-    using _ev_name_map_t = std::unordered_map<std::string, int>;
-
+    using _e_name_map_t = std::unordered_map<std::string, int>;
     using _metric_nam_t = std::string;
-    using _expression_t = std::pair<std::string, std::map<std::string, _ev_name_map_t::iterator>>;
+    using _expression_t = std::pair<std::string, std::map<std::string, _e_name_map_t::iterator>>;
 
 public:
     static ptr_t alloc();
@@ -74,7 +73,7 @@ private:
                                                                      */
     std::vector<_metric_nam_t> _metrics_list;
 
-    _ev_name_map_t _ev_name;  /* event name=>type list */
+    _e_name_map_t _e_name;  /* event name=>type list */
 };
 
 class analyzer {
@@ -117,20 +116,20 @@ private:
      * 
      * event's PMU value are aggregated & averaged by multiple samples (so we use double, not uint64_t)
      */
-    using _ev_thrd_elem_t   = std::array<double, NR_MAX_PROCESSOR>;
-    using _ev_core_elem_t   = std::array<double, NR_MAX_CORE>;
-    using _ev_socket_elem_t = std::array<double, NR_MAX_SOCKET>;
-    using _ev_system_elem_t = std::array<double, 1U>;
+    using _e_thrd_elem_t   = std::array<double, NR_MAX_PROCESSOR>;
+    using _e_core_elem_t   = std::array<double, NR_MAX_CORE>;
+    using _e_socket_elem_t = std::array<double, NR_MAX_SOCKET>;
+    using _e_system_elem_t = std::array<double, 1U>;
 
     /* name=>data list
      *
      * key: event's name string
      * val: event's pmu value (a smart pointer to std::array)
      */
-    using _ev_thrd_t   = std::unordered_map<std::string, std::shared_ptr<_ev_thrd_elem_t>>;
-    using _ev_core_t   = std::unordered_map<std::string, std::shared_ptr<_ev_core_elem_t>>;
-    using _ev_socket_t = std::unordered_map<std::string, std::shared_ptr<_ev_socket_elem_t>>;
-    using _ev_system_t = std::unordered_map<std::string, std::shared_ptr<_ev_system_elem_t>>;
+    using _e_thrd_t   = std::unordered_map<std::string, std::shared_ptr<_e_thrd_elem_t>>;
+    using _e_core_t   = std::unordered_map<std::string, std::shared_ptr<_e_core_elem_t>>;
+    using _e_socket_t = std::unordered_map<std::string, std::shared_ptr<_e_socket_elem_t>>;
+    using _e_system_t = std::unordered_map<std::string, std::shared_ptr<_e_system_elem_t>>;
 
 private:
     metric::ptr_t  _metric;
@@ -154,7 +153,7 @@ private:
      * core_id:      uniq in socket level (may be discontinuous)
      * socket_id:    uniq in system level
      */
-    _ev_thrd_t _ev_thread;
+    _e_thrd_t _e_thread;
 
     /* event data list, physical core level, only for core PMU events
      * 
@@ -166,7 +165,7 @@ private:
      *   [N,  2 * N - 1]:     cores for socket1
      *   [2 * N,  3 * N - 1]: cores for socket2
      */
-    _ev_core_t _ev_core;
+    _e_core_t _e_core;
 
     std::bitset<NR_MAX_CORE> _core_usable_list;
     #define core_script(socket, coreid)  ((socket) * NR_MAX_CORE_PER_SKT + (coreid))
@@ -177,7 +176,7 @@ private:
      * key: event's name string
      * val: an array, the sub-script is the socket's id
      */
-    _ev_socket_t _ev_socket;
+    _e_socket_t _e_socket;
 
     std::bitset<NR_MAX_SOCKET> _skt_usable_list;
 
@@ -186,7 +185,7 @@ private:
      * key: event's name string
      * val: an array(with just 1 elem), the sub-script should always be 0
      */
-    _ev_system_t _ev_system;
+    _e_system_t _e_system;
 
     const static std::string _thread_view_filp;
     const static std::string _core_view_filp;
@@ -202,11 +201,11 @@ private:
      */
     std::array<std::tuple<int, int, int>, NR_MAX_PROCESSOR> _cpu_topology;
                                                                            
-    #define processor_status(c)  std::get<0>(_cpu_topology[(c)])
-    #define processor_coreid(c)  std::get<1>(_cpu_topology[(c)])
-    #define processor_socket(c)  std::get<2>(_cpu_topology[(c)])
+    #define _m_processor_status(c)  std::get<0>(this->_cpu_topology[(c)])
+    #define _m_processor_coreid(c)  std::get<1>(this->_cpu_topology[(c)])
+    #define _m_processor_socket(c)  std::get<2>(this->_cpu_topology[(c)])
 
-    #define processor_online(c)  processor_status(c) == 1
+    #define _m_processor_online(c)  _m_processor_status(c) == 1
 };
 
 } /* namespace perfm */

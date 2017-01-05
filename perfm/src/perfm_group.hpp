@@ -5,6 +5,10 @@
 #ifndef __PERFM_GROUP_HPP__
 #define __PERFM_GROUP_HPP__
 
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #include <vector>
 #include <string>
 #include <memory>
@@ -38,6 +42,7 @@
 namespace perfm {
 
 class group {
+
 public:
     using ptr_t = std::shared_ptr<group>;
 
@@ -51,15 +56,16 @@ private:
 
 public:
     /**
-     * open - encode & open the event group for monitoring
+     * open - resolve and then open the event group for monitoring
      *
-     * @elist  event group list, within the form: "event1,event2,event3,..."  
+     * @list   event group list, within the form: "event1,event2,event3,..."  
      * @pid    process/thread to minitor, -1 for any process/thread
      * @cpu    processor to monitor, -1 for any processor
      * @flags  flags used by perf_event_open(2), defaults to 0
      *
      * Return:
-     *     file descriptor of the group leader, or -1 if error occurred 
+     *     succ: true
+     *     fail: false
      *
      * Description:
      *     A pid > 0 and cpu == -1 setting measures per-process and follows that process to whatever CPU 
@@ -75,10 +81,10 @@ public:
      *     compared, added, divided (to get ratios), etc., with each other, since they have counted events for the 
      *     same set of executed instructions.
      */
-    int open(const std::string &elist, pid_t pid, int cpu, unsigned long flags = 0UL);
-    int open(const std::vector<std::string> &eargv, pid_t pid, int cpu, unsigned long flags = 0UL);
+    bool open(const std::string &list, pid_t pid, int cpu, unsigned long flags = 0UL);
+    bool open(const std::vector<std::string> &argv, pid_t pid, int cpu, unsigned long flags = 0UL);
 
-    int close();
+    bool close();
 
     bool read();
     bool copy();
@@ -90,41 +96,41 @@ public:
     // we need to ensure this event group do counting all the time in period of [_tsc_prev, _tsc_curr]
     bool start() {
         _tsc_prev = _tsc_curr = read_tsc();
-        return ioctl(leader()->perf_fd(), PERF_EVENT_IOC_ENABLE, 0) == 0;
+        return ioctl(leader()->fd(), PERF_EVENT_IOC_ENABLE, 0) == 0;
     }
 
     bool stop() {
-        return ioctl(leader()->perf_fd(), PERF_EVENT_IOC_DISABLE, 0) == 0;
+        return ioctl(leader()->fd(), PERF_EVENT_IOC_DISABLE, 0) == 0;
     }
 
     bool reset() {
-        return ioctl(leader()->perf_fd(), PERF_EVENT_IOC_RESET, 0) == 0;
+        return ioctl(leader()->fd(), PERF_EVENT_IOC_RESET, 0) == 0;
     }
 
     size_t size() const {
-        return _elist.size();
+        return _e_list.size();
     }
 
     size_t nr_event() const {
-        return _elist.size();
+        return _e_list.size();
     }
 
     event::ptr_t leader() const {
-        if (_elist.empty() || _grp >= _elist.size()) {
+        if (_e_list.empty() || _grp >= _e_list.size()) {
             return event::ptr_t();
         }
 
-        return _elist[_grp];
+        return _e_list[_grp];
     }
 
     void print() const;
 
     std::vector<event::ptr_t> elist() const {
-        return _elist;
+        return _e_list;
     }
 
     event::ptr_t fetch_event(size_t id) {
-        return id < _elist.size() ? _elist[id] : nullptr;
+        return id < _e_list.size() ? _e_list[id] : nullptr;
     }
 
     uint64_t tsc_value() const {
@@ -136,13 +142,14 @@ public:
     }
 
 private:
-    std::vector<event::ptr_t> _elist; /* event list in this group
-                                       * - an event group is scheduled onto the CPU as a unit, it will be put onto
-                                       *   the CPU only if all of the events in the group can be put onto the CPU
-                                       * - events in the same group are measured simultaneously
-                                       */
+    std::vector<event::ptr_t> _e_list; /* event list in this group
+                                        * - an event group is scheduled onto the CPU as a unit, it will be put onto
+                                        *   the CPU only if all of the events in the group can be put onto the CPU
+                                        * - events in the same group are measured simultaneously
+                                        */
 
-    size_t _grp = 0;          /* group leader's subscipt in _elist; for now it should always be 0 */
+    size_t _grp = 0;          /* group leader's subscipt in _e_list; for now it should always be 0 */
+
     int _cpu = -1;            /* which CPU to monitor, -1 for any CPU */
     pid_t _pid;               /* which process to monitor, -1 for any process */
     unsigned long _flags = 0; /* flags used by perf_event_open(2) */

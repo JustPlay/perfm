@@ -85,8 +85,8 @@ void monitor::open()
     //   for now, we assume the processor's id is always less than _nr_usable_cpu
     //   processor's id can be obtained from /proc/cpuinfo or /sys/devices/system/cpu
     try {
-        this->_cpu_data = new _pmu_data_t[this->_nr_usable_cpu]; 
-        this->_ev_group = new _ev_group_t[perfm_options.nr_group()];
+        this->_cpu_data = new _pmu_dat_t[this->_nr_usable_cpu]; 
+        this->_ev_group = new _e_group_t[perfm_options.nr_group()];
     } catch (const std::bad_alloc &e) {
         perfm_fatal("failed to alloc memory, %s\n", e.what());
     }

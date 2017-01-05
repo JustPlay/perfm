@@ -2,6 +2,7 @@
 #include "perfm_option.hpp"
 #include "perfm_event.hpp"
 #include "perfm_group.hpp"
+#include "perfm_parser.hpp"
 
 #include <cstdio>
 #include <cstdlib>
@@ -27,26 +28,29 @@ group::ptr_t group::alloc()
     return ptr_t(g);
 }
 
-int group::open(const std::string &elist, pid_t pid, int cpu, unsigned long flags)
+bool group::open(const std::string &list, pid_t pid, int cpu, unsigned long flags)
 {
-    const auto &eargv = str_split(elist, ",", options::sz_group_max()); 
-    return this->open(eargv, pid, cpu, flags);
+    const auto &argv = str_split(list, ",", options::sz_group_max()); 
+    return open(argv, pid, cpu, flags);
 }
 
-int group::open(const std::vector<std::string> &eargv, pid_t pid, int cpu, unsigned long flags)
+bool group::open(const std::vector<std::string> &argv, pid_t pid, int cpu, unsigned long flags)
 {
-    this->_pid   = pid;
-    this->_cpu   = cpu;
-    this->_grp   = 0; // just let the *first* event in this group to be the leader
-    this->_flags = flags;
+    /*
+     * FIXME:
+     *    remove libpfm4
+     */
+    _pid   = pid;
+    _cpu   = cpu;
+    _flags = flags;
+    _grp   = 0; // just let the *first* event in this group to be the leader
 
-    for (decltype(eargv.size()) i = 0; i < eargv.size(); ++i) {
-        event::ptr_t ev = event::alloc();
+    for (decltype(argv.size()) i = 0; i < argv.size(); ++i) {
+        event::ptr_t e = event::alloc();
         if (!ev) {
             perfm_warn("failed to alloc event object\n");
             continue;
         }
-
 
         pfm_perf_encode_arg_t arg;
         memset(&arg, 0, sizeof(arg));
@@ -57,30 +61,29 @@ int group::open(const std::vector<std::string> &eargv, pid_t pid, int cpu, unsig
         arg.attr = &hw;
         arg.size = sizeof(arg);
 
-        pfm_err_t ret = pfm_get_os_event_encoding(eargv[i].c_str(), PFM_PLM3 | PFM_PLM0, PFM_OS_PERF_EVENT, &arg);
+        pfm_err_t ret = pfm_get_os_event_encoding(argv[i].c_str(), PFM_PLM3 | PFM_PLM0, PFM_OS_PERF_EVENT, &arg);
         if (ret != PFM_SUCCESS) {
             if (perfm_options.skip_err) {
-                perfm_warn("invalid event (ignored), %s\n", eargv[i].c_str());
+                perfm_warn("invalid event (ignored), %s\n", argv[i].c_str());
                 continue;
             } else {
-                perfm_fatal("event encoding error, %s %s\n", eargv[i].c_str(), pfm_strerror(ret));
+                perfm_fatal("event encoding error, %s %s\n", argv[i].c_str(), pfm_strerror(ret));
             }
         }
 
-        ev->process(this->_pid);
-        ev->cpu(this->_cpu);
-        ev->mask(this->_flags);
-        ev->name(eargv[i]);
-        ev->attribute(&hw);
+        e->process(_pid);
+        e->cpu(_cpu);
+        e->flag(_flags);
+        e->raw_name(argv[i]);
+        e->attr(&hw);
 
-        _elist.push_back(ev);
+        _e_list.push_back(e);
     }
 
-    for (size_t i = 0; i < this->size(); ++i) {
-
-        struct perf_event_attr *hw = _elist[i]->attribute();
+    for (size_t i = 0, n = size(); i < n; ++i) {
+        struct perf_event_attr *hw = _e_list[i]->attr();
         if (!hw) {
-            perfm_fatal("failed to get event's attribute\n");
+            perfm_fatal("failed to get event's attr\n");
         }
 
         hw->disabled = i == this->_grp ? 1 : 0;   /* disabled = 1 for group leader, 0 for others */
@@ -94,29 +97,33 @@ int group::open(const std::vector<std::string> &eargv, pid_t pid, int cpu, unsig
             hw->inherit = 1;
         }
 
-        _elist[i]->leader(i == this->_grp ? -1 : leader()->perf_fd());
-        _elist[i]->attribute(hw);
+        _e_list[i]->leader(i == this->_grp ? -1 : leader()->fd());
+        _e_list[i]->attr(hw);
 
-        _elist[i]->open();
+        _e_list[i]->open();
 
         free(hw);
     }
 
-    return leader()->perf_fd(); /* return the group leader's perf_event fd */
+    /*
+     * FIXME:
+     *    error handling
+     */
+    return true;
 }
 
-int group::close() {
-    for (size_t e = 0; e < _elist.size(); ++e) {
-        _elist[e]->close();
+bool group::close() {
+    for (size_t e = 0; e < _e_list.size(); ++e) {
+        _e_list[e]->close();
     }
 
-    return 0; /* FIXME (error handling) */
+    return true; /* FIXME (error handling) */
 }
 
 bool group::read()
 {
     if (perfm_options.rdfmt_evgroup) {
-        size_t nr_events = this->nr_event();
+        size_t nr_events = nr_event();
         size_t sz_buffer = sizeof(uint64_t) * (3 + nr_events);
 
         uint64_t *buf = nullptr;
@@ -133,7 +140,7 @@ bool group::read()
         _tsc_prev = _tsc_curr;
         _tsc_curr = read_tsc();
         
-        ssize_t ret = ::read(this->leader()->perf_fd(), buf, sz_buffer);
+        ssize_t ret = ::read(leader()->fd(), buf, sz_buffer);
         if (ret == -1) {
             perfm_fatal("%s\n", "error occured reading pmu counters");
         } 
@@ -142,7 +149,7 @@ bool group::read()
         }
 
         for (size_t i = 0; i < nr_events; ++i) {
-            _elist[i]->pmu_cntr(buf[3 + i], buf[1], buf[2]);
+            _e_list[i]->pmu_cntr(buf[3 + i], buf[1], buf[2]);
         }
 
         if (buf) {
@@ -155,14 +162,14 @@ bool group::read()
         _tsc_prev = _tsc_curr;
         _tsc_curr = read_tsc();
 
-        size_t nr_events = 0;
+        size_t nr_succ = 0;
 
-        for (auto iter = _elist.begin(); iter != _elist.end(); ++iter) {
+        for (auto iter = _e_list.begin(); iter != _e_list.end(); ++iter) {
             if ((*iter)->read()) {
-                ++nr_events;
+                ++nr_succ;
             }
         }
-        return nr_events == this->nr_event() ? true : false;
+        return nr_succ == nr_event() ? true : false;
     }
 }
 
@@ -178,8 +185,8 @@ void group::print() const
     // 1. each event a line
     // 2. column fields separated by DELIMITER
     // 3. event groups separated by an empty line
-    for (decltype(_elist.size()) i = 0; i < _elist.size(); ++i) {
-        fprintf(fp, "%s" DELIMITER "%zu\n", _elist[i]->name().c_str(), _elist[i]->scale());
+    for (decltype(_e_list.size()) i = 0; i < _e_list.size(); ++i) {
+        fprintf(fp, "%s" DELIMITER "%zu\n", _e_list[i]->name().c_str(), _e_list[i]->scale());
     }
 
     fprintf(fp, "\n");

@@ -81,26 +81,26 @@ private:
 
     std::bitset<NR_MAX_PROCESSOR> _cpu_usable_list;
     std::bitset<NR_MAX_PROCESSOR> _cpu_online_list;
-    #define cpu_usable(cpu)  _cpu_usable_list.test((cpu))  /* is (logical) @cpu usable ? */
-    #define cpu_online(cpu)  _cpu_online_list.test((cpu))  /* is (logical) @cpu online ? */
+    #define _m_cpu_usable(cpu)  _cpu_usable_list.test((cpu))  /* is (logical) @cpu usable ? */
+    #define _m_cpu_online(cpu)  _cpu_online_list.test((cpu))  /* is (logical) @cpu online ? */
 
     std::bitset<NR_MAX_SOCKET> _socket_usable_list;
     std::bitset<NR_MAX_SOCKET> _socket_online_list;
-    #define skt_usable(skt)  _socket_usable_list.test((skt))  /* is socket (physical package) usable ? */
-    #define skt_online(skt)  _socket_online_list.test((skt))  /* is socket (physical package) online ? */
+    #define _m_skt_usable(skt)  _socket_usable_list.test((skt))  /* is socket (physical package) usable ? */
+    #define _m_skt_online(skt)  _socket_online_list.test((skt))  /* is socket (physical package) online ? */
 
     using _core2thrds_map_t = std::array<int, NR_MAX_SMT_PER_CORE>;  
 
     std::tuple<bool, int, _core2thrds_map_t> _topology[NR_MAX_SOCKET][NR_MAX_CORE_PER_SKT];           
-    #define core_usable(skt, core)  std::get<0>(_topology[(skt)][(core)]) /* physical core exist? core's id may be discontinuous */
-    #define core_thread(skt, core)  std::get<1>(_topology[(skt)][(core)]) /* how many logical threads share this core */
-    #define list_thread(skt, core)  std::get<2>(_topology[(skt)][(core)]) /* logical processor/cpu list on this physical core */
+    #define _m_core_usable(skt, core)  std::get<0>(_topology[(skt)][(core)]) /* physical core exist? core's id may be discontinuous */
+    #define _m_core_thread(skt, core)  std::get<1>(_topology[(skt)][(core)]) /* how many logical threads share this core */
+    #define _m_list_thread(skt, core)  std::get<2>(_topology[(skt)][(core)]) /* logical processor/cpu list on this physical core */
 
     std::array<std::pair<int, int>, NR_MAX_PROCESSOR> _cpu; /* subscript is (logical) processor's id
                                                              * array type is: <core, socket>
                                                              */
-    #define processor_coreid(c)  _cpu[(c)].first
-    #define processor_socket(c)  _cpu[(c)].second
+    #define _m_processor_coreid(c)  _cpu[(c)].first
+    #define _m_processor_socket(c)  _cpu[(c)].second
 };
 
 } /* namespace perfm */

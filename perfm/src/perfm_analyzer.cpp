@@ -56,18 +56,18 @@ void metric::events_parse(const std::string &filp)
 
         // uncore PMU event 
         if (env.find("UNC_") != std::string::npos) {
-            _ev_name.insert({env, PMU_UNCORE});
+            _e_name.insert({env, PMU_UNCORE});
             continue;
         }
 
         // offcore PMU event
         if (env.find("OFFCORE_") != std::string::npos) {
-            _ev_name.insert({evn, PMU_OFFCORE}); 
+            _e_name.insert({evn, PMU_OFFCORE}); 
             continue;
         }
 
         // core PMU event
-        _ev_name.insert({evn, PMU_CORE});
+        _e_name.insert({evn, PMU_CORE});
     }
 }
 
@@ -109,9 +109,9 @@ bool metric::metric_parse(xml::xml_node<char> *m)
         return false;
     }
 
-    std::string m_name(n->value(), n->value_size());         // metric name
-    std::string m_expr;                                      // metric expr
-    std::map<std::string, _ev_name_map_t::iterator> e_alias; // metric expr alias
+    std::string m_name(n->value(), n->value_size());        // metric name
+    std::string m_expr;                                     // metric expr
+    std::map<std::string, _e_name_map_t::iterator> e_alias; // metric expr alias
 
     // metric expr (non-empty)
     for (xml::xml_node<char> *nd = m->first_node(); nd; nd = nd->next_sibling()) {
@@ -136,8 +136,8 @@ bool metric::metric_parse(xml::xml_node<char> *m)
 
             std::string alias(attr->value(), attr->value_size());
 
-            auto event = _ev_name.find(nd_val);
-            if (event == _ev_name.end()) {
+            auto event = _e_name.find(nd_val);
+            if (event == _e_name.end()) {
                 perfm_warn("TODO\n");
             }
 
@@ -155,7 +155,7 @@ bool metric::metric_parse(xml::xml_node<char> *m)
             }
             
             std::string alias(attr->value(), attr->value_size());
-            auto constant = _ev_name.insert({nd_val, PMU_CONSTANT});
+            auto constant = _e_name.insert({nd_val, PMU_CONSTANT});
 
             if (!constant.second && constant.first->second != PMU_CONSTANT) {
                 perfm_warn("TODO\n");
@@ -185,8 +185,8 @@ bool metric::metric_parse(xml::xml_node<char> *m)
 
 int metric::evn2type(const std::string &evn)
 {
-    auto it = _ev_name.find(evn);
-    if (it != _ev_name.end()) {
+    auto it = _e_name.find(evn);
+    if (it != _e_name.end()) {
         return it->second;
     }
 
@@ -280,13 +280,13 @@ void analyzer::topology(const std::string &filp)
     }
 
     for (unsigned int c = 0, n = 0; n < _nr_thread; ++c) {
-        if (processor_stauts(c) == -1) {
+        if (_m_processor_stauts(c) == -1) {
             continue;
         }
         ++n;
 
-        int coreid = processor_coreid(c);
-        int socket = processor_socket(c);
+        int coreid = _m_processor_coreid(c);
+        int socket = _m_processor_socket(c);
 
         if (!_skt_usable_list.test(socket)) {
             ++_nr_socket;
@@ -382,17 +382,17 @@ void analyzer::insert(const std::string &evn, const std::vector<double> &val)
         }
 
         {
-            auto it = this->_ev_thread.find(evn);
-            if (it == this->_ev_thread.end()) {
-                _ev_thrd_elem_t *p = nullptr;
+            auto it = this->_e_thread.find(evn);
+            if (it == this->_e_thread.end()) {
+                _e_thrd_elem_t *p = nullptr;
                 try {
-                    p = new _ev_thrd_elem_t;
+                    p = new _e_thrd_elem_t;
                 } catch (const std::bad_alloc &) {
                     perfm_fatal("failed to alloc memory\n");
                 }
 
                 for (size_t c = 0, n = 0; n < val.size(); ++c) {
-                    if (processor_status(c) == -1) {
+                    if (_m_processor_status(c) == -1) {
                         continue;
                     }
                     ++n;
@@ -400,11 +400,11 @@ void analyzer::insert(const std::string &evn, const std::vector<double> &val)
                     p[c] = val[n];
                 }
 
-                this->_ev_thread.insert({evn, std::shared_ptr<_ev_thrd_elem_t>(p)});
+                this->_e_thread.insert({evn, std::shared_ptr<_e_thrd_elem_t>(p)});
 
             } else {
                 for (size_t c = 0, n = 0; n < val.size(); ++c) {
-                    if (processor_status(c) == -1) {
+                    if (_m_processor_status(c) == -1) {
                         continue;
                     }
                     ++n;
@@ -422,11 +422,11 @@ void analyzer::insert(const std::string &evn, const std::vector<double> &val)
         }
 
         {
-            auto it = this->_ev_socket.find(evn);
-            if (it == this->_ev_socket.end()) {
-                _ev_socket_elem_t *p = nullptr;
+            auto it = this->_e_socket.find(evn);
+            if (it == this->_e_socket.end()) {
+                _e_socket_elem_t *p = nullptr;
                 try {
-                    p = new _ev_socket_elem_t;
+                    p = new _e_socket_elem_t;
                 } catch (const std::bad_alloc &) {
                     perfm_fatal("failed to alloc memory\n");
                 }
@@ -435,7 +435,7 @@ void analyzer::insert(const std::string &evn, const std::vector<double> &val)
                     p[i] = val[i];
                 }
 
-                this->_ev_socket.insert({evn, std::shared_ptr<_ev_socket_elem_t>(p)});
+                this->_e_socket.insert({evn, std::shared_ptr<_e_socket_elem_t>(p)});
 
             } else {
                 for (size_t i = 0; i < val.size(); ++i) {
@@ -463,11 +463,11 @@ void analyzer::insert(const std::string &evn, const std::vector<double> &val)
 void analyzer::average(const std::unordered_map<std::string, size_t> &ev_count)
 {
     // core/offcore PMU events are related to each presented (logical) CPUs 
-    for (auto it = _ev_thread.begin(); it != _ev_thread.end(); ++it) {
+    for (auto it = _e_thread.begin(); it != _e_thread.end(); ++it) {
         size_t cntr = ev_count[it->first];
 
         for (unsigned int c = 0, n = 0; n < _nr_thread; ++c) {
-            if (processor_status(c) == -1) {
+            if (_m_processor_status(c) == -1) {
                 continue;
             }
             ++n;
@@ -477,11 +477,11 @@ void analyzer::average(const std::unordered_map<std::string, size_t> &ev_count)
     }
 
     // uncore PMU events are related to socket (not CPUs)
-    for (auto it = _ev_socket.begin(); it != _ev_socket.end(); ++it) {
+    for (auto it = _e_socket.begin(); it != _e_socket.end(); ++it) {
         size_t cntr = ev_count[it->first];
 
         for (unsigned int c = 0, n = 0; n < _nr_socket; ++c) {
-            if (processor_status(c) == -1) {
+            if (_m_processor_status(c) == -1) {
                 continue;
             }
             ++n;
@@ -518,10 +518,10 @@ void analyzer::thrd_compute()
 
 void analyzer::core_compute()
 {
-    for (auto it = _ev_thread.begin(); it != _ev_thread.end(); ++it) {
-        _ev_core_elem_t *p = nullptr;
+    for (auto it = _e_thread.begin(); it != _e_thread.end(); ++it) {
+        _e_core_elem_t *p = nullptr;
         try {
-            p = new _ev_core_elem_t;
+            p = new _e_core_elem_t;
         } catch (const std::bad_alloc &) {
             perfm_fatal("failed to alloc memory\n"); 
         }
@@ -531,13 +531,13 @@ void analyzer::core_compute()
         }
 
         for (unsigned int c = 0, n = 0; n < _nr_thread; ++c) {
-            if (processor_status(c) == -1) {
+            if (_m_processor_status(c) == -1) {
                 continue;
             }
             ++n;
 
-            int socket = processor_socket(c);
-            int coreid = processor_coreid(c);
+            int socket = _m_processor_socket(c);
+            int coreid = _m_processor_coreid(c);
 
             p[core_script(socket, coreid)] += (*(it->second))[c];
         }
@@ -549,10 +549,10 @@ void analyzer::core_compute()
 void analyzer::socket_compute()
 {
     // aggregate PMU data related to this socket
-    for (auto it = _ev_thread.begin(); it != _ev_thread.end(); ++it) {
-        _ev_socket_elem_t *p = nullptr;
+    for (auto it = _e_thread.begin(); it != _e_thread.end(); ++it) {
+        _e_socket_elem_t *p = nullptr;
         try {
-            p = new _ev_socket_elem_t;
+            p = new _e_socket_elem_t;
         } catch (const std::bad_alloc &) {
             perfm_fatal("failed to alloc memory\n"); 
         }
@@ -562,15 +562,15 @@ void analyzer::socket_compute()
         }
 
         for (unsigned int c = 0, n = 0; n < _nr_thread; ++c) {
-            if (processor_status(c) == -1) {
+            if (_m_processor_status(c) == -1) {
                 continue;
             }
             ++n;
             
-            p[processor_socket(c)] += (*(it->second))[c];
+            p[_m_processor_socket(c)] += (*(it->second))[c];
         }
 
-        _ev_socket.insert({it->first, std::shared_ptr<_ev_socket_elem_t>(p)});
+        _e_socket.insert({it->first, std::shared_ptr<_e_socket_elem_t>(p)});
     }
 
     // parse the aggregated data
@@ -580,10 +580,10 @@ void analyzer::socket_compute()
 void analyzer::system_compute()
 {
     if (perfm_options.socket_view) {
-        for (auto it = _ev_socket.begin(); it != _ev_socket.end(); ++it) {
-            _ev_system_elem_t *p = nullptr;
+        for (auto it = _e_socket.begin(); it != _e_socket.end(); ++it) {
+            _e_system_elem_t *p = nullptr;
             try {
-                p = new _ev_system_elem_t { 0 };
+                p = new _e_system_elem_t { 0 };
             } catch (const std::bad_alloc &) {
                 perfm_fatal("failed to alloc memory\n"); 
             }
@@ -592,20 +592,20 @@ void analyzer::system_compute()
                 p[0] += (*(it->second))[s];
             }
 
-            _ev_system.insert({it->first, std::shared_ptr<_ev_system_elem_t>(p)});
+            _e_system.insert({it->first, std::shared_ptr<_e_system_elem_t>(p)});
         }
     
     } else {
-        for (auto it = _ev_thread.begin(); it != _ev_thread.end(); ++it) {
-            _ev_system_elem_t *p = nullptr;
+        for (auto it = _e_thread.begin(); it != _e_thread.end(); ++it) {
+            _e_system_elem_t *p = nullptr;
             try {
-                p = new _ev_system_elem_t { 0 };
+                p = new _e_system_elem_t { 0 };
             } catch (const std::bad_alloc &) {
                 perfm_fatal("failed to alloc memory\n"); 
             }
 
             for (unsigned int c = 0, n = 0; n < _nr_thread; ++c) {
-                if (processor_status(c) == -1) {
+                if (_m_processor_status(c) == -1) {
                     continue;
                 }
                 ++n;
@@ -613,7 +613,7 @@ void analyzer::system_compute()
                 p[0] += (*(it->second))[c];
             }
 
-            _ev_system.insert({it->first, std::shared_ptr<_ev_system_elem_t>(p)});
+            _e_system.insert({it->first, std::shared_ptr<_e_system_elem_t>(p)});
         }
     }
 
@@ -824,8 +824,8 @@ double analyzer::expr_eval(const _expression_t &formula, size_t column) const
                 }
 
                 // fetch data for the given event
-                auto data = _ev_data.find(name->second->first);
-                if (data == _ev_data.end()) {
+                auto data = _e_data.find(name->second->first);
+                if (data == _e_data.end()) {
                     perfm_fatal("invalid event name %s\n", name->second->first.c_str());
                 }
 
