@@ -1,4 +1,5 @@
 
+#include "perfm_json.hpp"
 #include "perfm_parser.hpp"
 #include "perfm_util.hpp"
 
@@ -576,12 +577,24 @@ bool parser::parse_encoding(struct perf_event_attr *hw, const std::string &pmu, 
     return true;
 }
 
-void load_event_description(const std::string &json_file)
+void load_event_description(const std::string &json_filp, bool append)
 {
-    if (json_file.empty()) {
-        perfm_fatal("file path empty\n");
+    if (json_filp.empty()) {
+        perfm_fatal("you must specify a json file\n");
     }
 
+    if (!append) {
+        // do some cleaning work 
+    }
+
+    property_tree::ptree ptree; // root of the property tree
+
+    try {
+        json::read_json(json_filp, ptree); // load the json file into ptree
+    } catch (const json::json_parser_error &e) {
+        perfm_fatal("%s\n", e.what());
+    }
+    
     // TODO
 }
 

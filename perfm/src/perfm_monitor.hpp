@@ -14,6 +14,55 @@
 
 namespace perfm {
 
+template<std::size_t N> class bitmap final {
+
+public:
+    bool is_set(long bit) const
+    {
+        if (bit < 0 || static_cast<size_t>(bit) >= N) {
+            return false;
+        }
+
+        return !!(_bits_array[bit / _NR_BIT_LONG] & lshift(bit));
+    }
+
+    void do_set(long bit)
+    {
+        if (bit < 0 || static_cast<size_t>(bit) >= N) {
+            return;
+        }
+
+        _bits_array[bit / _NR_BIT_LONG] |= lshift(bit);
+    }
+
+    void do_clr(long bit)
+    {
+        if (bit < 0 || static_cast<size_t>(bit) >= N) {
+            return;
+        }
+
+        _bits_array[bit / _NR_BIT_LONG] &= ~lshift(bit);
+    }
+
+public:
+    bitmap() { }
+    ~bitmap() { }
+
+    bitmap(const bitmap &) = delete;
+    bitmap(bitmap &&) = delete;
+
+private:
+    static unsigned long lshift(unsigned long v) {
+        return 1UL << (_NR_BIT_LONG - 1 - (v % _NR_BIT_LONG));
+    }
+
+private:
+    unsigned long _bits_array[(N / _NR_BIT_LONG) + 1] = { 0 };
+
+private:
+    static constexpr std::size_t _NR_BIT_LONG = sizeof(unsigned long) << 3; 
+};
+
 class monitor {
 
 public:
@@ -82,8 +131,8 @@ private:
     _pmu_dat_t *_skt_data = nullptr;
     _e_group_t *_ev_group = nullptr;
 
-    size_t _nr_select_cpu = 0; /* # of selected CPUs */
-    size_t _nr_usable_cpu = 0; /* # of presented CPUS */
+    size_t _nr_select_cpu = 0; /* # of selected cpus */
+    size_t _nr_usable_cpu = 0; /* # of presented cpus */
 };
 
 inline bool monitor::is_set(int pos) const
