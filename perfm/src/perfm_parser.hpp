@@ -114,7 +114,7 @@ public:
      * Description:
      *     
      */
-    void load_event_description(const std::string &filp, bool append = false);
+    void load_event_description(const std::string &thread_filp, const std::string &socket_filp, bool append = false);
 
     /**
      * parse_perf_event - resolve perf style event descriptions to attr
@@ -169,6 +169,28 @@ private:
     bool parse_modifier(struct perf_event_attr *, const std::string &m) const;
     bool parse_pmu_type(struct perf_event_attr *, const std::string &p) const;
     bool parse_encoding(struct perf_event_attr *, const std::string &p, const std::string &e) const;
+
+    /**
+     * load_thread_event_description - load core pmu (thread level pmu) event description from json file
+     *
+     * @filp    json file to load from
+     * @append  append mode ? 
+     *
+     * Description:
+     *     TODO
+     */
+    void load_thread_event_description(const std::string &filp, bool append);
+
+    /**
+     * load_socket_event_description - load uncore pmu (socket level pmu) event description from json file
+     *
+     * @filp    json file to load from
+     * @append  append mode ? 
+     *
+     * Description:
+     *     TODO
+     */
+    void load_socket_event_description(const std::string &filp, bool append);
 
 private:
     /* event sources provided by linux's perf_event subsystem 

@@ -577,25 +577,108 @@ bool parser::parse_encoding(struct perf_event_attr *hw, const std::string &pmu, 
     return true;
 }
 
-void load_event_description(const std::string &json_filp, bool append)
+void parser::load_event_description(const std::string &thread_filp, const std::string &socket_filp, bool apppend)
 {
-    if (json_filp.empty()) {
-        perfm_fatal("you must specify a json file\n");
+    if (thread_filp.empty() && socket_filp.empty() && !append) {
+        perfm_fatal("please specify a json file which describes the pmu events\n");
+    }
+
+    if (!thread_filp.empty()) {
+        load_thread_event_description(thread_filp, append);
+    }
+
+    if (!socket_filp.empty()) {
+        load_socket_event_description(socket_filp, append);
+    }
+}
+
+void parser::load_thread_event_description(const std::string &json_filp, bool append)
+{
+    if (json_filp.empty() && !append) {
+        perfm_fatal("please specify a json file which describes the pmu events\n");
     }
 
     if (!append) {
         // do some cleaning work 
     }
 
-    property_tree::ptree ptree; // root of the property tree
+    // Define the root of the property tree
+    property_tree::ptree ptree;
 
+    // Read JSON from a the given file and translate it to a property tree.
+    // - Clears existing contents of property tree. In case of error the property tree unmodified.
+    // - Items of JSON arrays are translated into ptree keys with empty names.
+    //   Members of objects are translated into named keys.
+    // - JSON data can be a string, a numeric value, or one of literals "null", "true" and "false".
+    //   During parse, any of the above is copied verbatim into ptree data string.
     try {
-        json::read_json(json_filp, ptree); // load the json file into ptree
+        json::read_json(json_filp, ptree);
     } catch (const json::json_parser_error &e) {
         perfm_fatal("%s\n", e.what());
+    } catch (const std::exception &e) {
+        perfm_fatal("%s\n", e.what());
     }
+
+    std::string _e_name; // EventName
+    std::string _e_code; // EventCode
+    std::string _e_umsk; // UMask
+    std::string _e_cmsk; // CounterMask
+    std::string _e_desc; // BriefDescription
+    std::string _e_inv;  // Invert
+    std::string _e_any;  // AnyThread
+    std::string _e_edge; // EdgeDetect  
+    std::string _e_prid; // SampleAfterValue
     
-    // TODO
+    for (property_tree::ptree::iterator it = ptree.begin(); it != ptree.end(); ++it) {
+        try { 
+            _e_name = it->second.get<std::string>("EventName");
+            _e_code = it->second.get<std::string>("EventCode");  
+            _e_umsk = it->second.get<std::string>("UMask");
+            _e_cmsk = it->second.get<std::string>("CounterMask");
+            _e_desc = it->second.get<std::string>("BriefDescription");
+            _e_inv  = it->second.get<std::string>("Invert");
+            _e_any  = it->second.get<std::string>("AnyThread");
+            _e_edge = it->second.get<std::string>("EdgeDetect");
+            _e_prid = it->second.get<std::string>("SampleAfterValue");
+        } catch (const property_tree::ptree_bad_path &e) {
+            perfm_fatal("%s\n", e.what());
+        } catch (const std::exception &e) {
+            perfm_fatal("%s\n", e.what());
+        }
+        /* TODO */
+    }
+
+    /* TODO */
+}
+
+void parser::load_socket_event_description(const std::string &json_filp, bool append)
+{
+    if (json_filp.empty() && !append) {
+        perfm_fatal("please specify a json file which describes the pmu events\n");
+    }
+
+    if (!append) {
+        // do some cleaning work 
+    }
+
+    // Define the root of the property tree
+    property_tree::ptree ptree;
+
+    // Read JSON from a the given file and translate it to a property tree.
+    // - Clears existing contents of property tree. In case of error the property tree unmodified.
+    // - Items of JSON arrays are translated into ptree keys with empty names.
+    //   Members of objects are translated into named keys.
+    // - JSON data can be a string, a numeric value, or one of literals "null", "true" and "false".
+    //   During parse, any of the above is copied verbatim into ptree data string.
+    try {
+        json::read_json(json_filp, ptree);
+    } catch (const json::json_parser_error &e) {
+        perfm_fatal("%s\n", e.what());
+    } catch (const std::exception &e) {
+        perfm_fatal("%s\n", e.what());
+    }
+
+    /* TODO */
 }
 
 } /* namespace perfm */
