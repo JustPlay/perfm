@@ -44,6 +44,94 @@ const char *pmu_type_list[EVENT_SOURCE_MAX + 1] = {
 
 namespace perfm {
 
+const char *einfo::_e_type_string[einfo::E_TYPE_MAX] = {
+    "TODO",
+    "TODO",
+};
+
+einfo::ptr_t einfo::alloc()
+{
+    einfo *p = nullptr;
+
+    try {
+        p = new einfo;
+    } catch (const std::exception &) {
+        p = nullptr;
+    }
+
+    return ptr_t(p);
+}
+
+void einfo::print(FILE *fp) const
+{
+    fprintf(fp, "EventName        : %s\n", _r_name.c_str());
+    fprintf(fp, "PerfEvent        : %s\n", _e_perf.c_str());
+    fprintf(fp, "Description      : %s\n", _e_desc.c_str());
+    fprintf(fp, "EventType        : %s\n", "TODO");
+    fprintf(fp, "EventPMU         : %s\n", _e_pmu.c_str());
+}
+
+einfo_intel::ptr_t einfo_intel::alloc()
+{
+    einfo_intel *p = nullptr;
+
+    try {
+        p = new einfo_intel;
+    } catch (const std::exception &) {
+        p = nullptr;
+    }
+
+    return ptr_t(p);
+}
+
+void einfo_intel::print(FILE *fp) const
+{
+    einfo::print(fp); 
+    
+    switch (_e_type) {
+    case E_PMU_CORE:
+        fprintf(fp, "EventCode        : 0x%zx\n", _e_ecode); 
+        fprintf(fp, "UMask            : 0x%zx\n", _e_umask);
+        fprintf(fp, "CounterMask      : %zu\n",   _e_cmask);
+        fprintf(fp, "SampleAfterValue : %zu\n",   _e_period);
+        fprintf(fp, "MSRIndex         : ");
+        for (int i = 0; i < _nr_msr; ++i) {
+            fprintf(fp, !i ? "0x%zx" : ",0x%zx", _e_msri[i]);
+        }
+        fprintf(fp, "\n");
+        fprintf(fp, "MSRValue         : 0x%zx\n", _e_msrv);
+        fprintf(fp, "Invert           : %s\n",    _e_inv  ? "true" : "false");
+        fprintf(fp, "AnyThread        : %s\n",    _e_any  ? "true" : "false");
+        fprintf(fp, "EdgeDetect       : %s\n",    _e_edge ? "true" : "false");
+        fprintf(fp, "PEBS             : %s\n",    _e_pebs ? "true" : "false");
+        break;
+
+    case E_PMU_UNCORE:
+        fprintf(fp, "Unit             : %s\n",    _e_unit.c_str()); 
+        fprintf(fp, "EventCode        : 0x%zx\n", _e_ecode); 
+        fprintf(fp, "UMask            : 0x%zx\n", _e_umask);
+        fprintf(fp, "MSRValue         : 0x%zx\n", _e_msrv);
+        fprintf(fp, "ExtSel           : %s\n",    _e_extsel ? "true" : "false");
+        break;
+
+    default:
+        ;
+    }
+}
+
+einfo_loongson::ptr_t einfo_loongson::alloc()
+{
+    einfo_loongson *p = nullptr;
+
+    try {
+        p = new einfo_loongson;
+    } catch (const std::exception &) {
+        p = nullptr;
+    }
+
+    return ptr_t(p);
+}
+
 parser::ptr_t parser::alloc()
 {
     parser *p = nullptr;
@@ -265,13 +353,27 @@ void parser::detect_encode_format(const std::string &pmu)
 
 void parser::print() const
 {
-    FILE *fp = stdout; 
-    
+    FILE *fp = stdout;
+
+    print_pmu_info(fp);
+    print_evn_info(fp);
+}
+
+void parser::print_pmu_info(FILE *fp) const
+{
+    if (!fp) {
+        return;
+    }
+
+    #ifdef pr
+    #undef pr
+    #endif
     #define pr(fmt, ...) fprintf(fp, fmt, ##__VA_ARGS__)
 
-    pr("Total %lu PMUs available (powered by linux's perf_event)\n", _event_source_list.size()); 
+    pr("----------------------------------------------------------\n");
+    pr("- Total %lu PMUs available (powered by linux's perf_event)\n", _event_source_list.size()); 
     for (const auto &pmu : _event_source_list) {
-        pr("  %-15s: %s(type: %d)\n", pmu.first.c_str(), pmu_type_list[pmu.second], pmu.second); 
+        pr("  %-12s: %-15s (type: %d)\n", pmu.first.c_str(), pmu_type_list[pmu.second], pmu.second); 
     }
     pr("\n");
 
@@ -282,7 +384,7 @@ void parser::print() const
     };
 
     for (const auto &pmu : _event_source_list) {
-        pr("Encoding format for PMU %s(%s, %d):\n", pmu.first.c_str(), pmu_type_list[pmu.second], pmu.second);
+        pr("- Encoding format for PMU: %s\n", pmu.first.c_str());
 
         auto fmt = _event_format_list.find(pmu.first);
         if (fmt == _event_format_list.end()) {
@@ -292,7 +394,7 @@ void parser::print() const
             case PERF_TYPE_HW_CACHE:
             case PERF_TYPE_BREAKPOINT:
             case PERF_TYPE_TRACEPOINT:
-                pr("  kernel generalized pmu, no format info\n");
+                pr("  kernel generalized pmu\n");
                 pr("\n");
                 continue;
             }
@@ -306,6 +408,20 @@ void parser::print() const
         }
 
         pr("\n");
+    }
+}
+
+void parser::print_evn_info(FILE *fp) const
+{
+    if (!fp) {
+        return;
+    }
+
+    fprintf(fp, "----------------------------------------------------------\n");
+    
+    for (const auto &e : _e_info_raw) {
+        e.second->print(fp);
+        fprintf(fp, "\n");
     }
 }
 
@@ -411,17 +527,17 @@ bool parser::parse_raw_event(const std::string &r, std::string &p)
         return false;
     }
 
-    // cache hit
-    auto it = _r2p_cache.find(r);    
-    if (it != _r2p_cache.end()) {
-        p = it->second;
-        return true;
-    }
+    auto it = _e_info_raw.find(r);
+    if (it != _e_info_raw.end()) {
+        if (it->second->_e_perf.empty()) {
+            /* TODO */ 
+        }
 
-    // cache miss
-    /* TODO */
-    // 1. find a event `descriptor`
-    // 2. use this `descriptor` to init @p
+        p = it->second->_e_perf;    
+    } else {
+        perfm_warn("unknown raw event %s\n", r.c_str());
+        return false;
+    }
 
     return true;
 }
@@ -577,29 +693,29 @@ bool parser::parse_encoding(struct perf_event_attr *hw, const std::string &pmu, 
     return true;
 }
 
-void parser::load_event_description(const std::string &thread_filp, const std::string &socket_filp, bool apppend)
+void parser::load_event(const std::string &filp_thread, const std::string &filp_socket, bool append)
 {
-    if (thread_filp.empty() && socket_filp.empty() && !append) {
-        perfm_fatal("please specify a json file which describes the pmu events\n");
-    }
-
-    if (!thread_filp.empty()) {
-        load_thread_event_description(thread_filp, append);
-    }
-
-    if (!socket_filp.empty()) {
-        load_socket_event_description(socket_filp, append);
-    }
-}
-
-void parser::load_thread_event_description(const std::string &json_filp, bool append)
-{
-    if (json_filp.empty() && !append) {
+    if (filp_thread.empty() && filp_socket.empty() && !append) {
         perfm_fatal("please specify a json file which describes the pmu events\n");
     }
 
     if (!append) {
-        // do some cleaning work 
+        _e_info_raw.clear();
+    }
+
+    if (!filp_thread.empty()) {
+        load_thread_level_event(filp_thread);
+    }
+
+    if (!filp_socket.empty()) {
+        load_socket_level_event(filp_socket);
+    }
+}
+
+void parser::load_thread_level_event(const std::string &json_filp)
+{
+    if (json_filp.empty()) {
+        perfm_fatal("please specify a json file which describes the pmu events\n");
     }
 
     // Define the root of the property tree
@@ -620,45 +736,92 @@ void parser::load_thread_event_description(const std::string &json_filp, bool ap
     }
 
     std::string _e_name; // EventName
+    std::string _e_desc; // BriefDescription
+
     std::string _e_code; // EventCode
     std::string _e_umsk; // UMask
     std::string _e_cmsk; // CounterMask
-    std::string _e_desc; // BriefDescription
+    std::string _e_prid; // SampleAfterValue
+
     std::string _e_inv;  // Invert
     std::string _e_any;  // AnyThread
     std::string _e_edge; // EdgeDetect  
-    std::string _e_prid; // SampleAfterValue
+    std::string _e_pebs; // Precise Event Based Sampling
+
+    std::string _e_msri; // MSRIndex
+    std::string _e_msrv; // MSRValue
+
+    const std::string zero("0");
+
+    // FIXME (MsrIndex, MsrValue)
     
     for (property_tree::ptree::iterator it = ptree.begin(); it != ptree.end(); ++it) {
         try { 
             _e_name = it->second.get<std::string>("EventName");
+            _e_desc = it->second.get<std::string>("BriefDescription");
+
             _e_code = it->second.get<std::string>("EventCode");  
             _e_umsk = it->second.get<std::string>("UMask");
             _e_cmsk = it->second.get<std::string>("CounterMask");
-            _e_desc = it->second.get<std::string>("BriefDescription");
+            _e_prid = it->second.get<std::string>("SampleAfterValue");
+
+            _e_msri = it->second.get<std::string>("MSRIndex");
+            _e_msrv = it->second.get<std::string>("MSRValue");
+
             _e_inv  = it->second.get<std::string>("Invert");
             _e_any  = it->second.get<std::string>("AnyThread");
             _e_edge = it->second.get<std::string>("EdgeDetect");
-            _e_prid = it->second.get<std::string>("SampleAfterValue");
+            _e_pebs = it->second.get<std::string>("PEBS");
         } catch (const property_tree::ptree_bad_path &e) {
             perfm_fatal("%s\n", e.what());
         } catch (const std::exception &e) {
             perfm_fatal("%s\n", e.what());
         }
-        /* TODO */
-    }
 
-    /* TODO */
+        einfo_intel::ptr_t e = einfo_intel::alloc();
+        if (!e) {
+            perfm_fatal("failed to alloc einfo object\n");
+        }
+
+        e->_r_name = _e_name;
+        e->_e_desc = _e_desc;
+        
+        try {
+            e->_e_ecode  = std::stoull(_e_code, nullptr, 0); 
+            e->_e_umask  = std::stoull(_e_umsk, nullptr, 0);
+            e->_e_cmask  = std::stoull(_e_cmsk, nullptr, 0);
+            e->_e_period = std::stoull(_e_prid, nullptr, 0);
+            e->_e_msrv   = std::stoull(_e_msrv, nullptr, 0);
+
+            e->_nr_msr = 0;
+            auto slice = str_split(_e_msri, ",");
+            for (size_t i = 0; i < slice.size() && i < 5U; ++i) {
+                e->_e_msri[e->_nr_msr++] = std::stoull(slice[i], nullptr, 0);
+            }
+        } catch (const std::invalid_argument &) {
+            perfm_fatal("\n"); 
+        } catch (const std::out_of_range &) {
+            perfm_fatal("\n"); 
+        }
+
+        e->_e_inv  = _e_inv  != zero;
+        e->_e_any  = _e_any  != zero;
+        e->_e_edge = _e_edge != zero; 
+        e->_e_pebs = _e_pebs != zero;
+
+        e->_e_type = einfo::E_PMU_CORE;
+
+        auto err = _e_info_raw.insert({_e_name, e});
+        if (!err.second) {
+            perfm_warn("duplicate raw event %s\n", _e_name.c_str());
+        }
+    }
 }
 
-void parser::load_socket_event_description(const std::string &json_filp, bool append)
+void parser::load_socket_level_event(const std::string &json_filp)
 {
-    if (json_filp.empty() && !append) {
+    if (json_filp.empty()) {
         perfm_fatal("please specify a json file which describes the pmu events\n");
-    }
-
-    if (!append) {
-        // do some cleaning work 
     }
 
     // Define the root of the property tree
@@ -678,7 +841,64 @@ void parser::load_socket_event_description(const std::string &json_filp, bool ap
         perfm_fatal("%s\n", e.what());
     }
 
-    /* TODO */
+    std::string _e_name; // EventName
+    std::string _e_desc; // BriefDescription
+    std::string _e_unit; // Unit
+
+    std::string _e_code; // EventCode
+    std::string _e_umsk; // UMask
+    
+    std::string _e_esel; // ExtSel
+    
+    std::string _e_msrv; // MSRValue
+
+    const std::string zero("0");
+    
+    for (property_tree::ptree::iterator it = ptree.begin(); it != ptree.end(); ++it) {
+        try { 
+            _e_name = it->second.get<std::string>("EventName");
+            _e_desc = it->second.get<std::string>("BriefDescription");
+            _e_unit = it->second.get<std::string>("Unit");
+
+            _e_code = it->second.get<std::string>("EventCode");  
+            _e_umsk = it->second.get<std::string>("UMask");
+
+            _e_msrv = it->second.get<std::string>("MSRValue");
+            _e_esel = it->second.get<std::string>("ExtSel");
+        } catch (const property_tree::ptree_bad_path &e) {
+            perfm_fatal("%s\n", e.what());
+        } catch (const std::exception &e) {
+            perfm_fatal("%s\n", e.what());
+        }
+
+        einfo_intel::ptr_t e = einfo_intel::alloc();
+        if (!e) {
+            perfm_fatal("failed to alloc einfo object\n");
+        }
+
+        e->_r_name = _e_name;
+        e->_e_desc = _e_desc;
+        
+        try {
+            e->_e_ecode = std::stoull(_e_code, nullptr, 0); 
+            e->_e_umask = std::stoull(_e_umsk, nullptr, 0);
+            e->_e_msrv  = std::stoull(_e_msrv, nullptr, 0);
+        } catch (const std::invalid_argument &) {
+            perfm_fatal("\n"); 
+        } catch (const std::out_of_range &) {
+            perfm_fatal("\n"); 
+        }
+
+        e->_e_unit   = _e_unit;
+        e->_e_extsel = _e_esel != zero;
+
+        e->_e_type = einfo::E_PMU_UNCORE;
+
+        auto err = _e_info_raw.insert({_e_name, e});
+        if (!err.second) {
+            perfm_warn("duplicate raw event %s\n", _e_name.c_str());
+        }
+    }
 }
 
 } /* namespace perfm */
@@ -688,6 +908,8 @@ int main(int argc, char **argv)
     perfm::parser::ptr_t parser = perfm::parser::alloc();
 
     parser->pmu_detect();
+
+    parser->load_event("events/intel/BroadwellX_core_V10.json", "events/intel/BroadwellX_uncore_V10.json");
 
     parser->print();
 }

@@ -61,6 +61,14 @@
 
 namespace perfm {
 
+//
+// http://en.cppreference.com/w/cpp/language/operators
+//
+// http://en.cppreference.com/w/cpp/utility/functional/equal_to
+//
+// http://en.cppreference.com/w/cpp/utility/hash
+//
+
 class einfo {
 
 public:
@@ -69,12 +77,113 @@ public:
 public:
     static ptr_t alloc();
 
+    virtual ~einfo() { }
+
 public:
-    std::string raw_nam; // raw event name
-    std::string evn_des; // description
-    std::string evn_pmu; // which PMU this event can use
-    std::string p_event; // perf style descriptor  
+    virtual void print(FILE *fp = stdout) const;
+
+protected:
+    einfo() { }
+
+public:
+    std::string _r_name; // raw event name
+    std::string _e_perf; // perf style descriptor  
+    std::string _e_desc; // event description
+    std::string _e_pmu;  // which PMU this event can use (e.g. tracepoint, software, raw, ...)
+
+    enum {
+        E_THREAD_LEVEL = 0,
+        E_SOCKET_LEVEL = 1,
+
+        E_PMU_CORE     = E_THREAD_LEVEL,
+        E_PMU_UNCORE   = E_SOCKET_LEVEL,
+
+        E_TYPE_MAX
+    };
+
+    int _e_type; // event type (e.g. core pmu event (thread level), uncore pmu event (socket level), ...)
+
+    static const char *_e_type_string[E_TYPE_MAX];
+
+public:
+    struct hash {
+        std::size_t operator()(const einfo &h) const {
+            return std::hash<std::string>{}(h._r_name);
+        }
+    };
 };
+
+inline bool operator==(const einfo &lhs, const einfo &rhs)
+{
+    return lhs._r_name == rhs._r_name;
+}
+
+inline bool operator!=(const einfo &lhs, const einfo &rhs)
+{
+    return !(lhs == rhs);
+}
+
+class einfo_intel : public einfo {
+
+public:
+    using ptr_t = std::shared_ptr<einfo_intel>;
+
+public:
+    static ptr_t alloc();
+
+    virtual void print(FILE *fp = stdout) const;
+
+private:
+    einfo_intel() : einfo() { }
+
+public:
+    /* Common fields
+     * 
+     * these fields should be valid for any type events
+     */
+    uint64_t _e_ecode; // EventCode
+    uint64_t _e_umask; // UMask
+    uint64_t _e_msrv;  // MSRValue
+
+    /* Fields only for core pmu event
+     *
+     * these fields will be valid only when @_e_type == E_PMU_CORE
+     */
+    uint64_t _e_msri[5]; // MSRIndex
+    uint64_t _e_cmask;   // CounterMask
+    bool _e_inv;         // Invert
+    bool _e_any;         // AnyThread
+    bool _e_edge;        // EdgeDetect
+    bool _e_pebs;        // Precise Event Based Sampling, a profiling technology in Intel CPUs 
+                         // that uses microcode to do (mostly) _precise_ event samples.
+    uint64_t _e_period;  // SampleAfterValue
+
+    int _nr_msr = 0; 
+
+    /* Fields only for uncore pmu event
+     *
+     * these fields will be valid only when @_e_type == E_PMU_UNCORE
+     */
+    std::string _e_unit; // Unit
+    bool _e_extsel;      // ExtSel
+};
+
+class einfo_loongson : public einfo {
+
+public:
+    using ptr_t = std::shared_ptr<einfo_loongson>;
+
+public:
+    static ptr_t alloc();
+
+    virtual void print(FILE *fp = stdout) const { }
+
+private:
+    einfo_loongson() : einfo() { }
+
+public:
+
+}; 
 
 class parser {
 
@@ -107,14 +216,16 @@ public:
     long pmu_detect(const std::string &pmu);
 
     /**
-     * load_event_description - load event description from json file
+     * load_event - load event description from json file
      *
-     * @filp: json file to load from
+     * @filp_thread: json file for thread level event (core pmu)
+     * @filp_socket: json file for socket level event (uncore pmu)
+     * @append:      append mode
      *
      * Description:
      *     
      */
-    void load_event_description(const std::string &thread_filp, const std::string &socket_filp, bool append = false);
+    void load_event(const std::string &filp_thread, const std::string &filp_socket, bool append = false);
 
     /**
      * parse_perf_event - resolve perf style event descriptions to attr
@@ -156,6 +267,22 @@ public:
 
 private:
     /**
+     * print_pmu_info - print pmu info
+     *
+     * @fp  file stream to write to
+     *
+     */
+    void print_pmu_info(FILE *fp = stdout) const;
+
+    /**
+     * print_evn_info - print event info
+     *
+     * @fp  file stream to write to
+     *
+     */
+    void print_evn_info(FILE *fp = stdout) const;
+
+    /**
      * detect_encode_format - detect the encoding format for all detected PMUs or PMU named by @pmu
      *
      * @pmu: PMU's name 
@@ -171,26 +298,24 @@ private:
     bool parse_encoding(struct perf_event_attr *, const std::string &p, const std::string &e) const;
 
     /**
-     * load_thread_event_description - load core pmu (thread level pmu) event description from json file
+     * load_thread_level_event - load core pmu (thread level pmu) event description from json file
      *
-     * @filp    json file to load from
-     * @append  append mode ? 
+     * @filp  json file to load from
      *
      * Description:
      *     TODO
      */
-    void load_thread_event_description(const std::string &filp, bool append);
+    void load_thread_level_event(const std::string &filp);
 
     /**
-     * load_socket_event_description - load uncore pmu (socket level pmu) event description from json file
+     * load_socket_level_event - load uncore pmu (socket level pmu) event description from json file
      *
-     * @filp    json file to load from
-     * @append  append mode ? 
+     * @filp  json file to load from
      *
      * Description:
      *     TODO
      */
-    void load_socket_event_description(const std::string &filp, bool append);
+    void load_socket_level_event(const std::string &filp);
 
 private:
     /* event sources provided by linux's perf_event subsystem 
@@ -238,13 +363,9 @@ private:
     bool _event_table_loaded  = false;
 
 private:
-    /* raw event descriptor to perf style event descriptor cache
-     *
-     * key: raw  sytle event descriptor
-     * val: perf style event descriptor
-     */
-    std::unordered_map<std::string, std::string> _r2p_cache;
+    std::unordered_map<std::string, einfo::ptr_t> _e_info_raw;
 
+private:
     /* perf style descriptor to `perf_event_attr` cache
      *
      * key: perf style event descriptor
