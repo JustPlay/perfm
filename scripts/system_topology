@@ -1,0 +1,78 @@
+#!/bin/bash
+
+#
+# Copyright (c) 2017 JustPlay (hy). All Rights Reserved
+#
+# Author:
+#     hy
+#
+# Date:
+#     2017/02/02
+#
+# Brief:
+#
+# Globals:
+#     
+#
+# Arguments:
+#
+#
+# Returns:
+#     succ: 0
+#     fail: 1
+
+
+# set -u          # variables must be defined before used
+# set -o nounset  #
+
+# set -e          # non-zero return states must be captured
+# set -o errexit  #
+
+# set -o pipefail # error between pipe should be captured
+
+# set -x          #
+# set -o xtrace   #
+
+set -u
+
+
+
+declare -r CAT="/bin/cat"
+
+declare -r GREP="/bin/grep"
+declare -r GAWK="/bin/gawk"
+
+function cpu_topology()
+{
+    printf "%s\n" "-------------------------"
+    printf "%s\n" "processor - core - socket"
+
+    paste \
+        <($CAT /proc/cpuinfo | $GREP 'processor'   | tr -d ' ' | $GAWK -F':' '{printf "%6s\n", $2}') \
+        <($CAT /proc/cpuinfo | $GREP 'core id'     | tr -d ' ' | $GAWK -F':' '{printf "%6s\n", $2}') \
+        <($CAT /proc/cpuinfo | $GREP 'physical id' | tr -d ' ' | $GAWK -F':' '{printf "%6s\n", $2}')
+
+    printf "%s\n" "processor - core - socket"
+    printf "%s\n" "-------------------------"
+    printf "\n"
+}
+
+function mem_topology()
+{
+    return 0
+}
+
+function net_topology()
+{
+    return 0
+}
+
+function topology()
+{
+    cpu_topology
+    mem_topology  
+    net_topology
+}
+
+## script entry ##
+topology

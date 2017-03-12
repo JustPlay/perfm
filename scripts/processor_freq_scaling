@@ -24,13 +24,13 @@
 #     fail: 1
 
 
-# set -u          # 使用的变量必须提前定义过
-# set -o nounset  # 使用的变量必须提前定义过
+# set -u          # variables must be defined before used
+# set -o nounset  #
 
-# set -e          # 所有非0的返回状态都需要捕获
-# set -o errexit  # 所有非0的返回状态都需要捕获
+# set -e          # non-zero return states must be captured
+# set -o errexit  #
 
-# set -o pipefail # 管道间错误需要捕获
+# set -o pipefail # error between pipe should be captured
 
 # set -x          #
 # set -o xtrace   #
@@ -38,7 +38,7 @@
 set -u
 
 
-declare -r CPU_DEVICES="/sys/devices/system/cpu"
+declare -r CPU_PATH="/sys/devices/system/cpu"
 
 declare -r CAT="/bin/cat"
 
@@ -46,8 +46,8 @@ declare -r GREP="/bin/grep"
 declare -r GAWK="/bin/gawk"
 declare -r ECHO="/bin/echo"
 
-declare -r CPU0_FREQ_MAX=$($CAT $CPU_DEVICES/cpu0/cpufreq/scaling_available_frequencies | $GAWK -F' ' '{ print $1 }');
-declare -r CPU0_FREQ_MIN=$($CAT $CPU_DEVICES/cpu0/cpufreq/scaling_available_frequencies | $GAWK -F' ' '{ print $NF }');
+declare -r CPU0_FREQ_MAX=$($CAT $CPU_PATH/cpu0/cpufreq/scaling_available_frequencies | $GAWK -F' ' '{ print $1 }');
+declare -r CPU0_FREQ_MIN=$($CAT $CPU_PATH/cpu0/cpufreq/scaling_available_frequencies | $GAWK -F' ' '{ print $NF }');
 
 
 function pr_msg()
@@ -79,66 +79,86 @@ function usage()
     pr_err "$(basename $0)"
 }
 
-function frequency_info()
+function list_freq_info()
 {
-    $CAT /proc/cpuinfo | $GREP -E '(MHz|processor)' | while read line;
+    pr_msg "--------------------------------"
+    pr_msg "+ cpuinfo: current frequency   +"
+    pr_msg "--------------------------------"
+
+    while read line;
     do
         local processor=$(echo $line | $GREP 'processor')
         if [ -n "$processor" ]; then
-            echo $processor | tr -d ' ' | $GAWK -F':' '{printf("- %s: #%-8d", $1, $2)}'
+            echo $processor | tr -d ' ' | $GAWK -F':' '{printf("- %s: #%-6d", $1, $2)}'
         fi 
 
         local frequency=$(echo $line | $GREP 'cpu MHz')
         if [ -n "$frequency" ]; then
-            echo $frequency | $GAWK -F':' '{printf("%.0fMHz\n", $2)}'
+            echo $frequency | $GAWK -F':' '{printf("%.0f MHz\n", $2)}'
         fi
-    done
+    done < <($CAT /proc/cpuinfo | $GREP -E '(MHz|processor)') 
 
+    pr_msg ""
 }
 
 function processor_freq_scaling()
 {
-    local cpu_min_freq=$(echo "$1 * 1000000" | bc | $GAWK -F'.' '{print $1}')
-    local cpu_max_freq=$(echo "$2 * 1000000" | bc | $GAWK -F'.' '{print $1}')
+    local min_freq=$(echo "$1 * 1000000" | bc | $GAWK -F'.' '{print $1}')
+    local max_freq=$(echo "$2 * 1000000" | bc | $GAWK -F'.' '{print $1}')
 
-    if [ ${cpu_min_freq} -gt ${cpu_max_freq} ]; then
-        pr_err "invalid argrments: please ensure ..."
-        exit 1;
+    pr_err "--------------------------------"
+    pr_err "+ MIN supported freq (MHz): $(echo "$CPU0_FREQ_MIN / 1000" | bc)"
+    pr_err "+ MAX supported freq (MHz): $(echo "$CPU0_FREQ_MAX / 1000" | bc)"
+    pr_err "--------------------------------"
+    pr_err ""
+
+    if [ $max_freq -lt $min_freq ] || \
+       [ $max_freq -lt $CPU0_FREQ_MIN ] || [ $min_freq -gt $CPU0_FREQ_MAX ] || \
+       [ $max_freq -gt $CPU0_FREQ_MAX ] || [ $min_freq -lt $CPU0_FREQ_MIN ]; then
+        pr_err "Invalid Argrments:"
+        pr_err "    min_freq (MHz): $(echo "$min_freq / 1000" | bc)"
+        pr_err "    max_freq (MHz): $(echo "$max_freq / 1000" | bc)"
+        pr_err "Will use:"
+
+        min_freq=$CPU0_FREQ_MIN
+        max_freq=$CPU0_FREQ_MAX
+
+        pr_err "    min_freq (MHz): $(echo "$min_freq / 1000" | bc)"
+        pr_err "    max_freq (MHz): $(echo "$max_freq / 1000" | bc)"
+        pr_err ""
     fi
 
-
     # set cpu frequency scaling
-    local cpu_list=$(ls $CPU_DEVICES | $GREP 'cpu[0-9]\{1,\}')
+    local cpu_list=$(ls $CPU_PATH | $GREP 'cpu[0-9]\{1,\}')
 
-    for cpu in ${cpu_list} 
+    for cpu in $cpu_list 
     do
         local if_onln=0
-        if [ -f ${CPU_DEVICES}/${cpu}/online ] && [ -r ${CPU_DEVICES}/${cpu}/online ]; then
-            if_onln=$($CAT ${CPU_DEVICES}/${cpu}/online)
+        if [ -f $CPU_PATH/$cpu/online ] && [ -r $CPU_PATH/$cpu/online ]; then
+            if_onln=$($CAT $CPU_PATH/$cpu/online)
         fi
        
         if [ "$if_onln"X = "1"X ] || [ "${cpu}" = "cpu0" ]; then
-            echo ${cpu_min_freq} > ${CPU_DEVICES}/$cpu/cpufreq/scaling_min_freq
-            echo ${cpu_max_freq} > ${CPU_DEVICES}/$cpu/cpufreq/scaling_max_freq
+            echo $min_freq > $CPU_PATH/$cpu/cpufreq/scaling_min_freq
+            echo $max_freq > $CPU_PATH/$cpu/cpufreq/scaling_max_freq
         fi
     done
 
     # finally, do some checks
-    local cpu_freq_list=$($CAT /proc/cpuinfo | $GREP -i 'mhz' | $GAWK -F':' '{print $2}' | tr -d ' ')
-    for freq in ${cpu_freq_list}
+    local freq_list=$($CAT /proc/cpuinfo | $GREP -i 'mhz' | $GAWK -F':' '{print $2}' | tr -d ' ')
+    for freq in $freq_list
     do
-        local cpu_cur_freq=$(echo "scale=2; $freq * 1000" | bc | $GAWK -F'.' '{printf $1}')
-        if [ $cpu_cur_freq -lt $cpu_min_freq ] || [ $cpu_cur_freq -gt $cpu_max_freq ]; then
-            pr_err "fatal error: set cpu freq failed, exiting..."
-            exit 1
+        local cur_freq=$(echo "scale=2; $freq * 1000" | bc | $GAWK -F'.' '{printf $1}')
+        if [ $cur_freq -lt $min_freq ] || [ $cur_freq -gt $max_freq ]; then
+            pr_err "fatal error: set cpu freq failed."
         fi
     done
 
-    frequency_info
+    list_freq_info
 }
 
 
-# entry: exec start from here
+## script entry ##
 if [ $EUID -ne 0 ] && [ $# -ne 0 ]; then
     pr_err "$(basename $0): you need root privilege to do cpu freq scaling."
     pr_err ""
@@ -148,17 +168,22 @@ if [ $EUID -ne 0 ] && [ $# -ne 0 ]; then
     exit 1
 fi
 
+declare -r DIR=$(pwd)
+
 case $# in
 2)
     cd $(dirname $0) && processor_freq_scaling $1 $2
+    cd $DIR
 ;;
 
 1)
     cd $(dirname $0) && processor_freq_scaling $1 $1
+    cd $DIR
 ;;
 
 0)
-    cd $(dirname $0) && frequency_info
+    cd $(dirname $0) && list_freq_info
+    cd $DIR
 ;;
 
 *)

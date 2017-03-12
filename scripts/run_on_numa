@@ -24,13 +24,13 @@
 #     fail: 1
 
 
-# set -u          # 使用的变量必须提前定义过
-# set -o nounset  # 使用的变量必须提前定义过
+# set -u          # variables must be defined before used
+# set -o nounset  #
 
-# set -e          # 所有非0的返回状态都需要捕获
-# set -o errexit  # 所有非0的返回状态都需要捕获
+# set -e          # non-zero return states must be captured
+# set -o errexit  #
 
-# set -o pipefail # 管道间错误需要捕获
+# set -o pipefail # error between pipe should be captured
 
 # set -x          #
 # set -o xtrace   #
@@ -107,7 +107,7 @@ function cgroup_mount()
     local path_cgroup="" 
 
     local if_cgroup_support=$($CAT /proc/filesystems | $GREP 'cgroup')
-    local if_cgroup_mounted=$(mount | $GREP 'cgroup')
+    local if_cgroup_mounted=$(mount | $GREP 'type cgroup')
 
     # cgroup not supported
     if [ -z "$if_cgroup_support" ]; then
